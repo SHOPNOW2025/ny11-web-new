@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { format, addDays, subDays } from 'date-fns';
 import { DailyPlan, Meal, Exercise, User, Goal, MarketItem, Coach } from '../types';
@@ -465,8 +465,18 @@ const ProfileSetup: React.FC<{ onComplete: (data: Partial<User>) => void }> = ({
 };
 
 const Dashboard: React.FC = () => {
-    const { currentUser, updateUserProfile, plan, language, translations } = useAppContext();
+    const { currentUser, updateUserProfile, plan, language, translations, generatePlanWithAI } = useAppContext();
     const t = translations[language];
+
+    useEffect(() => {
+        // Automatically trigger plan generation if profile is complete but no plan exists
+        const today = format(new Date(), 'yyyy-MM-dd');
+        if (currentUser && currentUser.id !== 'guest' && 
+            currentUser.age && currentUser.weight && currentUser.height && currentUser.goal && 
+            (!plan || !plan[today])) {
+            generatePlanWithAI(currentUser);
+        }
+    }, [currentUser, plan]);
 
     if (!currentUser || currentUser.id === 'guest') {
         return <HeroLanding />;
@@ -479,7 +489,7 @@ const Dashboard: React.FC = () => {
     }
 
     const today = format(new Date(), 'yyyy-MM-dd');
-    const hasPlan = !!plan[today];
+    const hasPlan = !!(plan && plan[today]);
 
     if (!hasPlan) {
         return (

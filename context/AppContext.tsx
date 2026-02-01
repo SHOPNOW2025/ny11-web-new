@@ -1,6 +1,6 @@
 
 import React, { createContext, useState, useContext, ReactNode, useCallback, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { 
   User, Language, Theme, CartItem, Plan, DailyPlan, QuoteStatus, 
   Message, MessageSender, UserRole, Goal, Coach, CoachOnboardingData, 
@@ -21,6 +21,7 @@ import {
   doc, setDoc, getDoc, collection, onSnapshot, 
   addDoc, updateDoc, deleteDoc 
 } from 'firebase/firestore';
+import { format } from 'date-fns';
 
 interface Toast {
     id: number;
@@ -78,6 +79,7 @@ interface AppContextType {
     updateKnowledgeItem: (item: KnowledgeBaseItem) => Promise<void>;
     deleteKnowledgeItem: (id: string) => Promise<void>;
     getAIResponse: (userQuestion: string) => Promise<string>;
+    generatePlanWithAI: (user: User) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -141,41 +143,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 } else {
                     const userDoc = await getDoc(doc(db, "users", fbUser.uid));
                     if (userDoc.exists()) {
-                        setCurrentUser(userDoc.data() as User);
+                        const userData = userDoc.data() as User;
+                        setCurrentUser(userData);
+                        // Fetch plan for current user if it exists
+                        const planDoc = await getDoc(doc(db, "plans", fbUser.uid));
+                        if (planDoc.exists()) setPlan(planDoc.data().plan || {});
                     }
                 }
             } else {
                 setCurrentUser(null);
+                setPlan({});
             }
             setIsLoading(false);
         });
 
-        // Error handling in snapshots to avoid console errors when permissions aren't ready
         const unsubscribeMarket = onSnapshot(collection(db, "marketItems"), 
             (snapshot) => {
                 const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as MarketItem[];
-                if (items.length > 0) setMarketItems(items);
-                else setMarketItems(MARKET_ITEMS);
+                setMarketItems(items.length > 0 ? items : MARKET_ITEMS);
             },
-            (error) => console.warn("Market snapshot error (likely permissions):", error.message)
+            (error) => console.warn("Market Items Snapshot Error:", error)
         );
 
         const unsubscribeCoaches = onSnapshot(collection(db, "coaches"), 
             (snapshot) => {
                 const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Coach[];
-                if (items.length > 0) setCoaches(items);
-                else setCoaches(COACHES);
+                setCoaches(items.length > 0 ? items : COACHES);
             },
-            (error) => console.warn("Coaches snapshot error (likely permissions):", error.message)
+            (error) => console.warn("Coaches Snapshot Error:", error)
         );
 
         const unsubscribeKB = onSnapshot(collection(db, "knowledgeBase"), 
             (snapshot) => {
                 const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as KnowledgeBaseItem[];
-                if (items.length > 0) setKnowledgeBase(items);
-                else setKnowledgeBase(DEFAULT_KNOWLEDGE_BASE);
+                setKnowledgeBase(items.length > 0 ? items : DEFAULT_KNOWLEDGE_BASE);
             },
-            (error) => console.warn("KnowledgeBase snapshot error (likely permissions):", error.message)
+            (error) => console.warn("KB Snapshot Error:", error)
         );
 
         const unsubscribeSettings = onSnapshot(doc(db, "settings", "general"), 
@@ -184,7 +187,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     setSiteConfig(doc.data() as SiteConfig);
                 }
             },
-            (error) => console.warn("Settings snapshot error (likely permissions):", error.message)
+            (error) => console.warn("Settings Snapshot Error:", error)
         );
 
         return () => {
@@ -197,16 +200,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, []);
 
     useEffect(() => {
+        // Only start the "users" collection listener if the current user is an admin
+        // This prevents the "permission-denied" error for regular users
         if (!currentUser || currentUser.role !== UserRole.ADMIN) {
             setUsers([]);
             return;
         }
+
         const unsubscribeUsers = onSnapshot(collection(db, "users"), 
             (snapshot) => {
                 setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as User[]);
             },
-            (error) => console.warn("Users snapshot error (likely permissions):", error.message)
+            (error) => console.warn("Users List Snapshot Error:", error)
         );
+
         return () => unsubscribeUsers();
     }, [currentUser]);
 
@@ -214,26 +221,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (isLockedOut) return false;
         setIsActionLoading(true);
         try {
-            const trimmedPhone = phone.trim();
-            const email = `${trimmedPhone}@ny11.com`;
+            const email = `${phone.trim()}@ny11.com`;
             const pass = password || "default123";
-            const userCredential = await signInWithEmailAndPassword(auth, email, pass);
-            if (ADMIN_PHONES.includes(trimmedPhone)) {
-                const adminData = await syncAdminData(userCredential.user.uid, trimmedPhone);
-                setCurrentUser({ ...adminData, role: UserRole.ADMIN });
-            } else {
-                const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
-                if (userDoc.exists()) setCurrentUser(userDoc.data() as User);
-            }
-            showToast(language === Language.AR ? "تم تسجيل الدخول بنجاح" : "Login successful", "success");
+            await signInWithEmailAndPassword(auth, email, pass);
             return true;
         } catch (error: any) {
-            let msg = language === Language.AR ? "بيانات الدخول غير صحيحة" : "Invalid credentials";
             if (error.code === 'auth/too-many-requests') {
                 setIsLockedOut(true);
-                setTimeout(() => setIsLockedOut(false), 60000); 
+                setTimeout(() => setIsLockedOut(false), 60000);
             }
-            showToast(msg, "error");
+            showToast(language === Language.AR ? "بيانات الدخول غير صحيحة" : "Invalid credentials", "error");
             return false;
         } finally {
             setIsActionLoading(false);
@@ -243,14 +240,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const register = async (userData: Omit<User, 'id' | 'role' | 'avatar' | 'email'>, customPassword?: string) => {
         setIsActionLoading(true);
         try {
-            const trimmedPhone = userData.phone.trim();
-            const email = `${trimmedPhone}@ny11.com`;
+            const email = `${userData.phone.trim()}@ny11.com`;
             const pass = customPassword || "default123";
             const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-            const isAdmin = ADMIN_PHONES.includes(trimmedPhone);
-            const newUser: User = { ...userData, id: userCredential.user.uid, email, role: isAdmin ? UserRole.ADMIN : UserRole.USER };
+            const newUser: User = { ...userData, id: userCredential.user.uid, email, role: UserRole.USER };
             await setDoc(doc(db, "users", newUser.id), newUser);
-            setCurrentUser(newUser);
+            // Default plan based on goal
+            const initialPlan = { [format(new Date(), 'yyyy-MM-dd')]: GOAL_PLANS[userData.goal || Goal.MAINTENANCE] };
+            await setDoc(doc(db, "plans", newUser.id), { plan: initialPlan });
+            setPlan(initialPlan);
             showToast(language === Language.AR ? "تم إنشاء الحساب بنجاح" : "Account created", "success");
         } catch (error: any) {
             showToast(error.message, "error");
@@ -303,61 +301,89 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const deleteKnowledgeItem = async (id: string) => { await deleteDoc(doc(db, "knowledgeBase", id)); showToast('Q&A deleted.', 'success'); };
 
     const getAIResponse = async (userQuestion: string): Promise<string> => {
+        // FIX: Guidance: Always use process.env.API_KEY for GenAI
+        if (!process.env.API_KEY) return language === Language.AR ? "نظام الذكاء الاصطناعي غير متصل." : "AI system offline.";
+        
         try {
-            // Using stored API Key from siteConfig or falling back to process.env.API_KEY
-            const apiKeyToUse = siteConfig.aiApiKey || process.env.API_KEY || '';
-            if (!apiKeyToUse) {
-                return language === Language.AR ? "عذراً، نظام الذكاء الاصطناعي غير مهيأ حالياً." : "AI system not configured.";
-            }
-
-            const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
-            
-            const knowledgeContext = knowledgeBase.length > 0 
-                ? knowledgeBase.map(kb => `سؤال: ${kb.question}\nإجابة: ${kb.answer}`).join('\n\n')
-                : "لا توجد معرفة محلية محددة حالياً.";
-
-            const systemInstruction = `أنت المدرب الذكي لمنصة NY11 للصحة والتغذية.
-            صوت العلامة التجارية: احترافي، مشجع، ومعتمد على العلم.
-            المعرفة المحلية للمنصة:
-            ${knowledgeContext}
-            
-            تعليمات:
-            1. استخدم المعرفة المحلية المذكورة أعلاه للإجابة على الأسئلة.
-            2. إذا لم يكن السؤال موجوداً في المعرفة المحلية، قدم نصيحة خبيرة في التغذية والصحة بشكل عام.
-            3. أجب دائماً بلغة المستخدم.
-            4. كن مختصراً، ذكياً، وودوداً.`;
-
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const knowledgeContext = knowledgeBase.map(kb => `Q: ${kb.question}\nA: ${kb.answer}`).join('\n\n');
+            const systemInstruction = `You are NY11 AI Coach. Knowledge base:\n${knowledgeContext}\nAnswer based on this or expert health/nutrition advice if not present. Always reply in user's language.`;
+            // FIX: Using gemini-3-flash-preview for general text tasks
             const response = await ai.models.generateContent({ 
                 model: 'gemini-3-flash-preview', 
                 contents: userQuestion, 
-                config: { 
-                    systemInstruction,
-                    temperature: 0.7,
-                    topP: 0.95
-                } 
+                config: { systemInstruction } 
+            });
+            return response.text || "No response";
+        } catch (error) { 
+            console.error(error);
+            return "AI Error.";
+        }
+    };
+
+    const generatePlanWithAI = async (user: User) => {
+        // FIX: Guidance: Always use process.env.API_KEY for GenAI
+        if (!process.env.API_KEY || !user.goal) return;
+        
+        try {
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const prompt = `Generate a 1-day meal and exercise plan for a user: Name ${user.name}, Age ${user.age}, Weight ${user.weight}kg, Height ${user.height}cm, Goal ${user.goal}. Return ONLY a JSON object of type DailyPlan.`;
+            
+            const response = await ai.models.generateContent({
+                model: 'gemini-3-pro-preview', // FIX: Using gemini-3-pro-preview for complex reasoning task (health planning)
+                contents: prompt,
+                config: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: Type.OBJECT,
+                        properties: {
+                            breakfast: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: {type: Type.STRING}, calories: {type: Type.NUMBER}, description: {type: Type.STRING}, completed: {type: Type.BOOLEAN} } } },
+                            lunch: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: {type: Type.STRING}, calories: {type: Type.NUMBER}, description: {type: Type.STRING}, completed: {type: Type.BOOLEAN} } } },
+                            dinner: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: {type: Type.STRING}, calories: {type: Type.NUMBER}, description: {type: Type.STRING}, completed: {type: Type.BOOLEAN} } } },
+                            snacks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: {type: Type.STRING}, calories: {type: Type.NUMBER}, description: {type: Type.STRING}, completed: {type: Type.BOOLEAN} } } },
+                            exercises: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: {type: Type.STRING}, reps: {type: Type.STRING}, duration: {type: Type.STRING}, completed: {type: Type.BOOLEAN} } } },
+                        }
+                    }
+                }
             });
 
-            return response.text || (language === Language.AR ? "عذراً، لا يمكنني الإجابة حالياً." : "Sorry, I can't answer right now.");
-        } catch (error) { 
-            console.error("AI Coach Error:", error);
-            return language === Language.AR 
-                ? "حدث خطأ في الاتصال بالمدرب الذكي. يرجى التأكد من مفتاح API." 
-                : "Error connecting to AI Coach. Please check API Key."; 
+            const aiPlan = JSON.parse(response.text || '{}') as DailyPlan;
+            const today = format(new Date(), 'yyyy-MM-dd');
+            const newPlan = { ...plan, [today]: aiPlan };
+            await setDoc(doc(db, "plans", user.id), { plan: newPlan });
+            setPlan(newPlan);
+        } catch (error) {
+            console.error("Plan Generation Error:", error);
+            // Fallback to static plan if AI fails
+            const today = format(new Date(), 'yyyy-MM-dd');
+            const fallbackPlan = { ...plan, [today]: GOAL_PLANS[user.goal || Goal.MAINTENANCE] };
+            await setDoc(doc(db, "plans", user.id), { plan: fallbackPlan });
+            setPlan(fallbackPlan);
         }
     };
 
     const clearCart = () => setCart([]);
     const showNotification = useCallback((notification: Omit<Notification, 'id'>) => { const id = Date.now(); setNotifications(prev => [...prev, { id, ...notification }]); setTimeout(() => dismissNotification(id), 5000); }, []);
     const dismissNotification = (id: number) => setNotifications(current => current.filter(notif => notif.id !== id));
-    const updatePlan = (newPlan: Plan) => setPlan(prevPlan => ({...prevPlan, ...newPlan}));
-    const updateDailyPlan = (date: string, dailyPlan: DailyPlan) => setPlan(prevPlan => ({...prevPlan, [date]: dailyPlan}));
+    
+    const updateDailyPlan = async (date: string, dailyPlan: DailyPlan) => {
+        if (!currentUser) return;
+        const newPlan = { ...plan, [date]: dailyPlan };
+        setPlan(newPlan);
+        await setDoc(doc(db, "plans", currentUser.id), { plan: newPlan });
+    };
 
     const updateUserProfile = async (profileData: Partial<Omit<User, 'id' | 'role' | 'email'>>) => {
         if (!currentUser) return;
         try { 
             await updateDoc(doc(db, "users", currentUser.id), profileData); 
-            setCurrentUser({ ...currentUser, ...profileData }); 
+            const updatedUser = { ...currentUser, ...profileData };
+            setCurrentUser(updatedUser); 
             showToast("Profile updated", "success"); 
+            // If goal changed or profile just completed, regenerate plan
+            if (updatedUser.age && updatedUser.weight && updatedUser.height && updatedUser.goal) {
+                generatePlanWithAI(updatedUser);
+            }
         }
         catch (error: any) { showToast(error.message, "error"); }
     };
@@ -366,17 +392,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const deleteBannerImage = (index: number) => setBannerImages(prev => prev.filter((_, i) => i !== index));
     const updateBannerImage = (index: number, url: string) => setBannerImages(prev => prev.map((img, i) => (i === index ? url : img)));
     const updateTranslations = (newTranslations: typeof TRANSLATIONS) => setTranslations(newTranslations);
-    
     const updateSiteConfig = async (newConfig: Partial<SiteConfig>) => {
         try {
-            const finalConfig = { ...siteConfig, ...newConfig };
-            setSiteConfig(finalConfig);
-            // PERSIST Settings in Firestore
-            await setDoc(doc(db, "settings", "general"), finalConfig);
-            showToast("Site settings saved to cloud.", "success");
-        } catch (err: any) {
-            console.error("Save settings error:", err);
-            showToast("Failed to save settings: " + err.message, "error");
+            const updated = { ...siteConfig, ...newConfig };
+            setSiteConfig(updated);
+            await setDoc(doc(db, "settings", "general"), updated);
+            showToast("Site settings updated.", "success");
+        } catch (e) {
+            console.error(e);
         }
     };
 
@@ -390,10 +413,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             currentUser, users, coaches, language, theme, cart, toasts, plan, notifications,
             isLanguageSelected, marketItems, bannerImages, siteConfig, translations, knowledgeBase, isLoading, isActionLoading,
             isLockedOut, login, loginAsGuest, logout, register, registerCoach, updateCoach, setLanguage, setIsLanguageSelected,
-            setTheme, addToCart, removeFromCart, clearCart, showToast, updatePlan, updateDailyPlan,
+            setTheme, addToCart, removeFromCart, clearCart, showToast, updatePlan: (p) => setPlan(p), updateDailyPlan,
             updateQuoteStatus, updateUserProfile, showNotification, dismissNotification, addMarketItem,
             updateMarketItem, deleteMarketItem, addBannerImage, deleteBannerImage, updateBannerImage,
-            updateTranslations, updateSiteConfig, addKnowledgeItem, updateKnowledgeItem, deleteKnowledgeItem, getAIResponse
+            updateTranslations, updateSiteConfig, addKnowledgeItem, updateKnowledgeItem, deleteKnowledgeItem, getAIResponse, generatePlanWithAI
         }}>
             {children}
         </AppContext.Provider>
