@@ -49,6 +49,13 @@ const Admin: React.FC = () => {
     const [editingKBItem, setEditingKBItem] = useState<KnowledgeBaseItem | null>(null);
     const [newKBItem, setNewKBItem] = useState({ question: '', answer: '', keywords: '' });
 
+    // Sync state when siteConfig updates
+    useEffect(() => {
+        if (siteConfig.aiApiKey) {
+            setAiApiKey(siteConfig.aiApiKey);
+        }
+    }, [siteConfig.aiApiKey]);
+
     const handleCoachInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setNewCoach({ ...newCoach, [e.target.name]: e.target.value });
     };

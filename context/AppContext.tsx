@@ -157,7 +157,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (items.length > 0) setMarketItems(items);
                 else setMarketItems(MARKET_ITEMS);
             },
-            (error) => console.warn("Market snapshot error:", error.message)
+            (error) => console.warn("Market snapshot error (likely permissions):", error.message)
         );
 
         const unsubscribeCoaches = onSnapshot(collection(db, "coaches"), 
@@ -166,7 +166,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (items.length > 0) setCoaches(items);
                 else setCoaches(COACHES);
             },
-            (error) => console.warn("Coaches snapshot error:", error.message)
+            (error) => console.warn("Coaches snapshot error (likely permissions):", error.message)
         );
 
         const unsubscribeKB = onSnapshot(collection(db, "knowledgeBase"), 
@@ -175,7 +175,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (items.length > 0) setKnowledgeBase(items);
                 else setKnowledgeBase(DEFAULT_KNOWLEDGE_BASE);
             },
-            (error) => console.warn("KnowledgeBase snapshot error:", error.message)
+            (error) => console.warn("KnowledgeBase snapshot error (likely permissions):", error.message)
         );
 
         const unsubscribeSettings = onSnapshot(doc(db, "settings", "general"), 
@@ -184,7 +184,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     setSiteConfig(doc.data() as SiteConfig);
                 }
             },
-            (error) => console.warn("Settings snapshot error:", error.message)
+            (error) => console.warn("Settings snapshot error (likely permissions):", error.message)
         );
 
         return () => {
@@ -197,12 +197,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, []);
 
     useEffect(() => {
-        if (!currentUser || currentUser.role !== UserRole.ADMIN) return;
+        if (!currentUser || currentUser.role !== UserRole.ADMIN) {
+            setUsers([]);
+            return;
+        }
         const unsubscribeUsers = onSnapshot(collection(db, "users"), 
             (snapshot) => {
                 setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as User[]);
             },
-            (error) => console.warn("Users snapshot error:", error.message)
+            (error) => console.warn("Users snapshot error (likely permissions):", error.message)
         );
         return () => unsubscribeUsers();
     }, [currentUser]);
