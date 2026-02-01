@@ -100,7 +100,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [bannerImages, setBannerImages] = useState<string[]>(BANNER_IMAGES);
     const [translations, setTranslations] = useState(TRANSLATIONS);
     const [siteConfig, setSiteConfig] = useState<SiteConfig>(DEFAULT_SITE_CONFIG);
-    const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBaseItem[]>([]);
+    const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBaseItem[]>(DEFAULT_KNOWLEDGE_BASE);
     const [isLoading, setIsLoading] = useState(true);
     const [isActionLoading, setIsActionLoading] = useState(false);
     const [isLockedOut, setIsLockedOut] = useState(false);
@@ -154,18 +154,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         const unsubscribeMarket = onSnapshot(collection(db, "marketItems"), (snapshot) => {
             const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as MarketItem[];
-            setMarketItems(items.length > 0 ? items : MARKET_ITEMS);
+            if (items.length > 0) setMarketItems(items);
+            else setMarketItems(MARKET_ITEMS);
         });
 
         const unsubscribeCoaches = onSnapshot(collection(db, "coaches"), (snapshot) => {
             const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Coach[];
-            setCoaches(items.length > 0 ? items : COACHES);
+            if (items.length > 0) setCoaches(items);
+            else setCoaches(COACHES);
+        });
+
+        const unsubscribeKB = onSnapshot(collection(db, "knowledgeBase"), (snapshot) => {
+            const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as KnowledgeBaseItem[];
+            if (items.length > 0) setKnowledgeBase(items);
+            else setKnowledgeBase(DEFAULT_KNOWLEDGE_BASE);
         });
 
         return () => {
             unsubscribeAuth();
             unsubscribeMarket();
             unsubscribeCoaches();
+            unsubscribeKB();
         };
     }, []);
 
@@ -192,13 +201,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const userCredential = await signInWithEmailAndPassword(auth, email, pass);
             
             if (ADMIN_PHONES.includes(trimmedPhone)) {
-                setCurrentUser({ 
-                    id: userCredential.user.uid, 
-                    name: "Admin", 
-                    email, 
-                    phone: trimmedPhone, 
-                    role: UserRole.ADMIN 
-                });
                 const adminData = await syncAdminData(userCredential.user.uid, trimmedPhone);
                 setCurrentUser({ ...adminData, role: UserRole.ADMIN });
             } else {
@@ -217,10 +219,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             if (error.code === 'auth/too-many-requests') {
                 setIsLockedOut(true);
                 msg = language === Language.AR 
-                    ? "تم حظر محاولاتك مؤقتاً بسبب تكرار الأخطاء. يرجى الانتظار 5 دقائق قبل المحاولة مجدداً." 
-                    : "Your attempts are temporarily blocked due to multiple errors. Please wait 5 minutes before trying again.";
-                
-                // Reset lockout after some time
+                    ? "تم حظر محاولاتك مؤقتاً بسبب تكرار الأخطاء. يرجى الانتظار دقيقة قبل المحاولة مجدداً." 
+                    : "Your attempts are temporarily blocked. Please wait a minute.";
                 setTimeout(() => setIsLockedOut(false), 60000); 
             }
             
@@ -251,13 +251,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setCurrentUser(newUser);
             showToast(language === Language.AR ? "تم إنشاء الحساب بنجاح" : "Account created", "success");
         } catch (error: any) {
-            let msg = error.message;
-            if (error.code === 'auth/too-many-requests') {
-                msg = language === Language.AR 
-                    ? "لقد قمت بعمليات تسجيل متكررة. انتظر بضع دقائق." 
-                    : "Too many registration attempts. Please wait.";
-            }
-            showToast(msg, "error");
+            showToast(error.message, "error");
         } finally {
             setIsActionLoading(false);
         }
@@ -307,13 +301,47 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const deleteKnowledgeItem = async (id: string) => { await deleteDoc(doc(db, "knowledgeBase", id)); showToast('Q&A deleted.', 'success'); };
 
     const getAIResponse = async (userQuestion: string): Promise<string> => {
+        if (!process.env.API_KEY) {
+            console.error("Gemini API Key missing");
+            return "AI Coach configuration error: API Key not found.";
+        }
+
         try {
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const knowledgeContext = knowledgeBase.map(kb => `Question: ${kb.question}\nAnswer: ${kb.answer}`).join('\n');
-            const systemInstruction = `You are the NY11 AI Health & Nutrition Coach. Knowledge: ${knowledgeContext}`;
-            const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: userQuestion, config: { systemInstruction } });
-            return response.text || "Sorry, I can't answer that right now.";
-        } catch (error) { return "Connection error."; }
+            
+            // Build Context from current knowledge base
+            const knowledgeContext = knowledgeBase.length > 0 
+                ? knowledgeBase.map(kb => `Question: ${kb.question}\nAnswer: ${kb.answer}`).join('\n\n')
+                : "No specific local knowledge available.";
+
+            const systemInstruction = `
+                You are the NY11 AI Health & Nutrition Coach. 
+                Your goal is to provide expert advice on health, diet, and fitness.
+                Here is your internal knowledge base to use for specific answers:
+                ${knowledgeContext}
+                
+                If the user asks something not in the knowledge base, use your general expertise to help them, 
+                but always maintain the brand voice of NY11: professional, encouraging, and science-backed.
+                Answer in the same language as the user (Arabic or English).
+            `;
+
+            const response = await ai.models.generateContent({ 
+                model: 'gemini-3-flash-preview', 
+                contents: userQuestion, 
+                config: { 
+                    systemInstruction,
+                    temperature: 0.7,
+                    topP: 0.95
+                } 
+            });
+
+            return response.text || (language === Language.AR ? "عذراً، لم أتمكن من معالجة طلبك." : "I'm sorry, I couldn't process your request.");
+        } catch (error) { 
+            console.error("Gemini API Error:", error);
+            return language === Language.AR 
+                ? "حدث خطأ في الاتصال بالمدرب الذكي. يرجى المحاولة مرة أخرى." 
+                : "Connection error with AI coach. Please try again."; 
+        }
     };
 
     const clearCart = () => setCart([]);
@@ -324,7 +352,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const updateUserProfile = async (profileData: Partial<Omit<User, 'id' | 'role' | 'email'>>) => {
         if (!currentUser) return;
-        try { await updateDoc(doc(db, "users", currentUser.id), profileData); setCurrentUser({ ...currentUser, ...profileData }); showToast("Profile updated", "success"); }
+        try { 
+            await updateDoc(doc(db, "users", currentUser.id), profileData); 
+            setCurrentUser({ ...currentUser, ...profileData }); 
+            showToast("Profile updated", "success"); 
+        }
         catch (error: any) { showToast(error.message, "error"); }
     };
 
