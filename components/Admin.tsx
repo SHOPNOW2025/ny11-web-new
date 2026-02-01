@@ -110,7 +110,6 @@ const Admin: React.FC = () => {
         setNewKBItem({ question: '', answer: '', keywords: '' });
     };
 
-    // FIX: Added missing handler for editing Knowledge Base items
     const handleEditKBClick = (item: KnowledgeBaseItem) => {
         setEditingKBItem(item);
         setNewKBItem({
@@ -120,14 +119,12 @@ const Admin: React.FC = () => {
         });
     };
 
-    // FIX: Added missing handler for deleting Knowledge Base items
     const handleDeleteKBItem = (id: string) => {
         if (window.confirm(t.confirmDelete || 'Are you sure?')) {
             deleteKnowledgeItem(id);
         }
     };
 
-    // FIX: Added missing handler for editing Market Items
     const handleEditItemClick = (item: MarketItem) => {
         setEditingItem(item);
         setNewItem({
@@ -143,7 +140,6 @@ const Admin: React.FC = () => {
         });
     };
 
-    // FIX: Added missing handler for deleting Market Items
     const handleDeleteItem = (id: string) => {
         if (window.confirm(t.confirmDelete || 'Are you sure?')) {
             deleteMarketItem(id);
@@ -233,10 +229,9 @@ const Admin: React.FC = () => {
             case 'ai-config':
                 return (
                     <div className="animate-fade-in space-y-8">
-                        {/* FIX: Guideline Compliance - Removed API key configuration UI */}
                         <div className="bg-white dark:bg-dark-card p-8 rounded-3xl shadow-lg border border-brand-green/20">
                             <h3 className="text-2xl font-bold mb-4">AI Integration</h3>
-                            <p className="text-sm text-gray-500 mb-4">AI is powered by Gemini. Configuration is managed via environment variables as per standard security practices.</p>
+                            <p className="text-sm text-gray-500 mb-4">AI is powered by Gemini. Knowledge base pairs below help customize AI Coach responses.</p>
                         </div>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             <div className="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-lg">

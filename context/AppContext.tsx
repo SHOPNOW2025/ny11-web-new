@@ -135,34 +135,39 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     useEffect(() => {
         const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
-            if (fbUser) {
-                const phone = fbUser.email?.split('@')[0] || '';
-                if (ADMIN_PHONES.includes(phone)) {
-                    const adminData = await syncAdminData(fbUser.uid, phone);
-                    setCurrentUser({ ...adminData, role: UserRole.ADMIN });
-                } else {
-                    const userDoc = await getDoc(doc(db, "users", fbUser.uid));
-                    if (userDoc.exists()) {
-                        const userData = userDoc.data() as User;
-                        setCurrentUser(userData);
-                        // Fetch plan for current user if it exists
-                        const planDoc = await getDoc(doc(db, "plans", fbUser.uid));
-                        if (planDoc.exists()) setPlan(planDoc.data().plan || {});
+            try {
+                if (fbUser) {
+                    const phone = fbUser.email?.split('@')[0] || '';
+                    if (ADMIN_PHONES.includes(phone)) {
+                        const adminData = await syncAdminData(fbUser.uid, phone);
+                        setCurrentUser({ ...adminData, role: UserRole.ADMIN });
+                    } else {
+                        const userDoc = await getDoc(doc(db, "users", fbUser.uid));
+                        if (userDoc.exists()) {
+                            const userData = userDoc.data() as User;
+                            setCurrentUser(userData);
+                            const planDoc = await getDoc(doc(db, "plans", fbUser.uid));
+                            if (planDoc.exists()) setPlan(planDoc.data().plan || {});
+                        }
                     }
+                } else {
+                    setCurrentUser(null);
+                    setPlan({});
                 }
-            } else {
-                setCurrentUser(null);
-                setPlan({});
+            } catch (err) {
+                console.error("Auth initialization error:", err);
+            } finally {
+                setIsLoading(false);
             }
-            setIsLoading(false);
         });
 
+        // Snapshots now include error handlers to prevent hanging the app on permission errors
         const unsubscribeMarket = onSnapshot(collection(db, "marketItems"), 
             (snapshot) => {
                 const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as MarketItem[];
                 setMarketItems(items.length > 0 ? items : MARKET_ITEMS);
             },
-            (error) => console.warn("Market Items Snapshot Error:", error)
+            (err) => console.warn("Market access restricted:", err.message)
         );
 
         const unsubscribeCoaches = onSnapshot(collection(db, "coaches"), 
@@ -170,7 +175,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Coach[];
                 setCoaches(items.length > 0 ? items : COACHES);
             },
-            (error) => console.warn("Coaches Snapshot Error:", error)
+            (err) => console.warn("Coaches access restricted:", err.message)
         );
 
         const unsubscribeKB = onSnapshot(collection(db, "knowledgeBase"), 
@@ -178,7 +183,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as KnowledgeBaseItem[];
                 setKnowledgeBase(items.length > 0 ? items : DEFAULT_KNOWLEDGE_BASE);
             },
-            (error) => console.warn("KB Snapshot Error:", error)
+            (err) => console.warn("Knowledge base access restricted:", err.message)
         );
 
         const unsubscribeSettings = onSnapshot(doc(db, "settings", "general"), 
@@ -187,7 +192,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     setSiteConfig(doc.data() as SiteConfig);
                 }
             },
-            (error) => console.warn("Settings Snapshot Error:", error)
+            (err) => console.warn("Global settings restricted:", err.message)
         );
 
         return () => {
@@ -200,8 +205,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, []);
 
     useEffect(() => {
-        // Only start the "users" collection listener if the current user is an admin
-        // This prevents the "permission-denied" error for regular users
         if (!currentUser || currentUser.role !== UserRole.ADMIN) {
             setUsers([]);
             return;
@@ -211,7 +214,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             (snapshot) => {
                 setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as User[]);
             },
-            (error) => console.warn("Users List Snapshot Error:", error)
+            (err) => console.warn("Admin only access restricted:", err.message)
         );
 
         return () => unsubscribeUsers();
@@ -245,7 +248,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
             const newUser: User = { ...userData, id: userCredential.user.uid, email, role: UserRole.USER };
             await setDoc(doc(db, "users", newUser.id), newUser);
-            // Default plan based on goal
             const initialPlan = { [format(new Date(), 'yyyy-MM-dd')]: GOAL_PLANS[userData.goal || Goal.MAINTENANCE] };
             await setDoc(doc(db, "plans", newUser.id), { plan: initialPlan });
             setPlan(initialPlan);
@@ -301,14 +303,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const deleteKnowledgeItem = async (id: string) => { await deleteDoc(doc(db, "knowledgeBase", id)); showToast('Q&A deleted.', 'success'); };
 
     const getAIResponse = async (userQuestion: string): Promise<string> => {
-        // FIX: Guidance: Always use process.env.API_KEY for GenAI
         if (!process.env.API_KEY) return language === Language.AR ? "نظام الذكاء الاصطناعي غير متصل." : "AI system offline.";
         
         try {
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const knowledgeContext = knowledgeBase.map(kb => `Q: ${kb.question}\nA: ${kb.answer}`).join('\n\n');
             const systemInstruction = `You are NY11 AI Coach. Knowledge base:\n${knowledgeContext}\nAnswer based on this or expert health/nutrition advice if not present. Always reply in user's language.`;
-            // FIX: Using gemini-3-flash-preview for general text tasks
             const response = await ai.models.generateContent({ 
                 model: 'gemini-3-flash-preview', 
                 contents: userQuestion, 
@@ -316,13 +316,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             });
             return response.text || "No response";
         } catch (error) { 
-            console.error(error);
+            console.error("AI interaction error:", error);
             return "AI Error.";
         }
     };
 
     const generatePlanWithAI = async (user: User) => {
-        // FIX: Guidance: Always use process.env.API_KEY for GenAI
         if (!process.env.API_KEY || !user.goal) return;
         
         try {
@@ -330,7 +329,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const prompt = `Generate a 1-day meal and exercise plan for a user: Name ${user.name}, Age ${user.age}, Weight ${user.weight}kg, Height ${user.height}cm, Goal ${user.goal}. Return ONLY a JSON object of type DailyPlan.`;
             
             const response = await ai.models.generateContent({
-                model: 'gemini-3-pro-preview', // FIX: Using gemini-3-pro-preview for complex reasoning task (health planning)
+                model: 'gemini-3-pro-preview',
                 contents: prompt,
                 config: {
                     responseMimeType: "application/json",
@@ -354,7 +353,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setPlan(newPlan);
         } catch (error) {
             console.error("Plan Generation Error:", error);
-            // Fallback to static plan if AI fails
             const today = format(new Date(), 'yyyy-MM-dd');
             const fallbackPlan = { ...plan, [today]: GOAL_PLANS[user.goal || Goal.MAINTENANCE] };
             await setDoc(doc(db, "plans", user.id), { plan: fallbackPlan });
@@ -380,7 +378,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const updatedUser = { ...currentUser, ...profileData };
             setCurrentUser(updatedUser); 
             showToast("Profile updated", "success"); 
-            // If goal changed or profile just completed, regenerate plan
             if (updatedUser.age && updatedUser.weight && updatedUser.height && updatedUser.goal) {
                 generatePlanWithAI(updatedUser);
             }
