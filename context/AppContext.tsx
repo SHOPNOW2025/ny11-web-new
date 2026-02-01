@@ -10,7 +10,6 @@ import {
   COACHES, MARKET_ITEMS, GOAL_PLANS, TRANSLATIONS, 
   BANNER_IMAGES, DEFAULT_SITE_CONFIG, DEFAULT_KNOWLEDGE_BASE 
 } from '../constants';
-import { format } from 'date-fns';
 import { auth, db } from '../lib/firebase';
 import { 
   signInWithEmailAndPassword, 
@@ -137,7 +136,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             if (fbUser) {
                 const phone = fbUser.email?.split('@')[0] || '';
                 if (ADMIN_PHONES.includes(phone)) {
-                    setCurrentUser({ id: fbUser.uid, name: "Admin", email: fbUser.email || '', phone, role: UserRole.ADMIN });
                     const adminData = await syncAdminData(fbUser.uid, phone);
                     setCurrentUser({ ...adminData, role: UserRole.ADMIN });
                 } else {
@@ -187,43 +185,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, [currentUser]);
 
     const login = async (phone: string, password?: string) => {
-        if (isLockedOut) {
-            showToast(language === Language.AR ? "النظام مغلق مؤقتاً لحمايتك. حاول لاحقاً." : "System temporarily locked for your safety. Try later.", "error");
-            return false;
-        }
-
+        if (isLockedOut) return false;
         setIsActionLoading(true);
         try {
             const trimmedPhone = phone.trim();
             const email = `${trimmedPhone}@ny11.com`;
             const pass = password || "default123";
-            
             const userCredential = await signInWithEmailAndPassword(auth, email, pass);
-            
             if (ADMIN_PHONES.includes(trimmedPhone)) {
                 const adminData = await syncAdminData(userCredential.user.uid, trimmedPhone);
                 setCurrentUser({ ...adminData, role: UserRole.ADMIN });
             } else {
                 const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
-                if (userDoc.exists()) {
-                    setCurrentUser(userDoc.data() as User);
-                }
+                if (userDoc.exists()) setCurrentUser(userDoc.data() as User);
             }
-            
             showToast(language === Language.AR ? "تم تسجيل الدخول بنجاح" : "Login successful", "success");
             return true;
         } catch (error: any) {
-            console.error("Login Error:", error);
             let msg = language === Language.AR ? "بيانات الدخول غير صحيحة" : "Invalid credentials";
-            
             if (error.code === 'auth/too-many-requests') {
                 setIsLockedOut(true);
-                msg = language === Language.AR 
-                    ? "تم حظر محاولاتك مؤقتاً بسبب تكرار الأخطاء. يرجى الانتظار دقيقة قبل المحاولة مجدداً." 
-                    : "Your attempts are temporarily blocked. Please wait a minute.";
                 setTimeout(() => setIsLockedOut(false), 60000); 
             }
-            
             showToast(msg, "error");
             return false;
         } finally {
@@ -238,15 +221,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const email = `${trimmedPhone}@ny11.com`;
             const pass = customPassword || "default123";
             const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-            
             const isAdmin = ADMIN_PHONES.includes(trimmedPhone);
-            const newUser: User = { 
-                ...userData, 
-                id: userCredential.user.uid, 
-                email, 
-                role: isAdmin ? UserRole.ADMIN : UserRole.USER 
-            };
-            
+            const newUser: User = { ...userData, id: userCredential.user.uid, email, role: isAdmin ? UserRole.ADMIN : UserRole.USER };
             await setDoc(doc(db, "users", newUser.id), newUser);
             setCurrentUser(newUser);
             showToast(language === Language.AR ? "تم إنشاء الحساب بنجاح" : "Account created", "success");
@@ -275,7 +251,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const newCoach: Coach = { id: userCredential.user.uid, name: data.name, specialty: data.specialty, bio: data.bio, experienceYears: parseInt(data.experienceYears, 10) || 0, clientsHelped: parseInt(data.clientsHelped, 10) || 0, avatar: data.avatar };
             await setDoc(doc(db, "users", newUser.id), newUser);
             await setDoc(doc(db, "coaches", newCoach.id), newCoach);
-            showToast(`Coach ${data.name} registered.`, 'success');
+            showToast(`Coach registered.`, 'success');
         } catch (error: any) { showToast(error.message, 'error'); }
     };
 
@@ -301,29 +277,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const deleteKnowledgeItem = async (id: string) => { await deleteDoc(doc(db, "knowledgeBase", id)); showToast('Q&A deleted.', 'success'); };
 
     const getAIResponse = async (userQuestion: string): Promise<string> => {
-        if (!process.env.API_KEY) {
-            console.error("Gemini API Key missing");
-            return "AI Coach configuration error: API Key not found.";
-        }
-
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            // Assume API_KEY is injected by environment; if not, GoogleGenAI will throw an appropriate error
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
             
-            // Build Context from current knowledge base
             const knowledgeContext = knowledgeBase.length > 0 
-                ? knowledgeBase.map(kb => `Question: ${kb.question}\nAnswer: ${kb.answer}`).join('\n\n')
+                ? knowledgeBase.map(kb => `Q: ${kb.question}\nA: ${kb.answer}`).join('\n\n')
                 : "No specific local knowledge available.";
 
-            const systemInstruction = `
-                You are the NY11 AI Health & Nutrition Coach. 
-                Your goal is to provide expert advice on health, diet, and fitness.
-                Here is your internal knowledge base to use for specific answers:
-                ${knowledgeContext}
-                
-                If the user asks something not in the knowledge base, use your general expertise to help them, 
-                but always maintain the brand voice of NY11: professional, encouraging, and science-backed.
-                Answer in the same language as the user (Arabic or English).
-            `;
+            const systemInstruction = `You are the NY11 AI Health & Nutrition Coach. 
+            Brand Voice: Professional, encouraging, and science-backed.
+            Local Knowledge:
+            ${knowledgeContext}
+            
+            Instructions: Use the local knowledge if available. If not, provide general expert health advice. Answer in the user's language.`;
 
             const response = await ai.models.generateContent({ 
                 model: 'gemini-3-flash-preview', 
@@ -331,16 +298,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 config: { 
                     systemInstruction,
                     temperature: 0.7,
-                    topP: 0.95
+                    topP: 0.95,
+                    thinkingConfig: { thinkingBudget: 0 }
                 } 
             });
 
-            return response.text || (language === Language.AR ? "عذراً، لم أتمكن من معالجة طلبك." : "I'm sorry, I couldn't process your request.");
+            return response.text || (language === Language.AR ? "عذراً، لا يمكنني الإجابة حالياً." : "Sorry, I can't answer right now.");
         } catch (error) { 
-            console.error("Gemini API Error:", error);
+            console.error("AI Coach Error:", error);
             return language === Language.AR 
-                ? "حدث خطأ في الاتصال بالمدرب الذكي. يرجى المحاولة مرة أخرى." 
-                : "Connection error with AI coach. Please try again."; 
+                ? "حدث خطأ في الاتصال بالمدرب الذكي. يرجى التأكد من اتصالك بالإنترنت." 
+                : "Connection error with AI coach. Please check your internet."; 
         }
     };
 
