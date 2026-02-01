@@ -151,7 +151,7 @@ export interface Notification {
 
 export interface SiteConfig {
     heroImage: string;
-    // Add other dynamic non-text config here
+    aiApiKey?: string;
 }
 
 export interface KnowledgeBaseItem {

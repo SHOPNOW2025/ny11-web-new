@@ -150,29 +150,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setIsLoading(false);
         });
 
-        const unsubscribeMarket = onSnapshot(collection(db, "marketItems"), (snapshot) => {
-            const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as MarketItem[];
-            if (items.length > 0) setMarketItems(items);
-            else setMarketItems(MARKET_ITEMS);
-        });
+        // Error handling in snapshots to avoid console errors when permissions aren't ready
+        const unsubscribeMarket = onSnapshot(collection(db, "marketItems"), 
+            (snapshot) => {
+                const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as MarketItem[];
+                if (items.length > 0) setMarketItems(items);
+                else setMarketItems(MARKET_ITEMS);
+            },
+            (error) => console.warn("Market snapshot error:", error.message)
+        );
 
-        const unsubscribeCoaches = onSnapshot(collection(db, "coaches"), (snapshot) => {
-            const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Coach[];
-            if (items.length > 0) setCoaches(items);
-            else setCoaches(COACHES);
-        });
+        const unsubscribeCoaches = onSnapshot(collection(db, "coaches"), 
+            (snapshot) => {
+                const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Coach[];
+                if (items.length > 0) setCoaches(items);
+                else setCoaches(COACHES);
+            },
+            (error) => console.warn("Coaches snapshot error:", error.message)
+        );
 
-        const unsubscribeKB = onSnapshot(collection(db, "knowledgeBase"), (snapshot) => {
-            const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as KnowledgeBaseItem[];
-            if (items.length > 0) setKnowledgeBase(items);
-            else setKnowledgeBase(DEFAULT_KNOWLEDGE_BASE);
-        });
+        const unsubscribeKB = onSnapshot(collection(db, "knowledgeBase"), 
+            (snapshot) => {
+                const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as KnowledgeBaseItem[];
+                if (items.length > 0) setKnowledgeBase(items);
+                else setKnowledgeBase(DEFAULT_KNOWLEDGE_BASE);
+            },
+            (error) => console.warn("KnowledgeBase snapshot error:", error.message)
+        );
 
-        const unsubscribeSettings = onSnapshot(doc(db, "settings", "general"), (doc) => {
-            if (doc.exists()) {
-                setSiteConfig(doc.data() as SiteConfig);
-            }
-        });
+        const unsubscribeSettings = onSnapshot(doc(db, "settings", "general"), 
+            (doc) => {
+                if (doc.exists()) {
+                    setSiteConfig(doc.data() as SiteConfig);
+                }
+            },
+            (error) => console.warn("Settings snapshot error:", error.message)
+        );
 
         return () => {
             unsubscribeAuth();
@@ -185,9 +198,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     useEffect(() => {
         if (!currentUser || currentUser.role !== UserRole.ADMIN) return;
-        const unsubscribeUsers = onSnapshot(collection(db, "users"), (snapshot) => {
-            setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as User[]);
-        });
+        const unsubscribeUsers = onSnapshot(collection(db, "users"), 
+            (snapshot) => {
+                setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as User[]);
+            },
+            (error) => console.warn("Users snapshot error:", error.message)
+        );
         return () => unsubscribeUsers();
     }, [currentUser]);
 
@@ -285,8 +301,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const getAIResponse = async (userQuestion: string): Promise<string> => {
         try {
-            // Priority given to injected API Key
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+            // Using stored API Key from siteConfig or falling back to process.env.API_KEY
+            const apiKeyToUse = siteConfig.aiApiKey || process.env.API_KEY || '';
+            if (!apiKeyToUse) {
+                return language === Language.AR ? "عذراً، نظام الذكاء الاصطناعي غير مهيأ حالياً." : "AI system not configured.";
+            }
+
+            const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
             
             const knowledgeContext = knowledgeBase.length > 0 
                 ? knowledgeBase.map(kb => `سؤال: ${kb.question}\nإجابة: ${kb.answer}`).join('\n\n')
@@ -317,8 +338,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         } catch (error) { 
             console.error("AI Coach Error:", error);
             return language === Language.AR 
-                ? "حدث خطأ في الاتصال بالمدرب الذكي. يرجى المحاولة لاحقاً." 
-                : "Error connecting to AI Coach. Please try again later."; 
+                ? "حدث خطأ في الاتصال بالمدرب الذكي. يرجى التأكد من مفتاح API." 
+                : "Error connecting to AI Coach. Please check API Key."; 
         }
     };
 
@@ -342,14 +363,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const deleteBannerImage = (index: number) => setBannerImages(prev => prev.filter((_, i) => i !== index));
     const updateBannerImage = (index: number, url: string) => setBannerImages(prev => prev.map((img, i) => (i === index ? url : img)));
     const updateTranslations = (newTranslations: typeof TRANSLATIONS) => setTranslations(newTranslations);
+    
     const updateSiteConfig = async (newConfig: Partial<SiteConfig>) => {
         try {
             const finalConfig = { ...siteConfig, ...newConfig };
             setSiteConfig(finalConfig);
+            // PERSIST Settings in Firestore
             await setDoc(doc(db, "settings", "general"), finalConfig);
-            showToast("Settings updated.", "success");
-        } catch (err) {
-            console.error(err);
+            showToast("Site settings saved to cloud.", "success");
+        } catch (err: any) {
+            console.error("Save settings error:", err);
+            showToast("Failed to save settings: " + err.message, "error");
         }
     };
 

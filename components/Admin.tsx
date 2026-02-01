@@ -44,19 +44,8 @@ const Admin: React.FC = () => {
         nutrition: { servingSize: '', energy: '', protein: '', carbs: '', fat: '' }
     });
 
-    // Text Management State
-    const [heroTitleEn, setHeroTitleEn] = useState(translations.en.heroTitle);
-    const [heroTitleAr, setHeroTitleAr] = useState(translations.ar.heroTitle);
-    const [heroSubtitleEn, setHeroSubtitleEn] = useState(translations.en.heroSubtitle);
-    const [heroSubtitleAr, setHeroSubtitleAr] = useState(translations.ar.heroSubtitle);
-    const [heroImage, setHeroImage] = useState(siteConfig.heroImage);
-
-    const [footerDescEn, setFooterDescEn] = useState(translations.en.footerDesc);
-    const [footerDescAr, setFooterDescAr] = useState(translations.ar.footerDesc);
-    const [footerCopyrightEn, setFooterCopyrightEn] = useState(translations.en.copyright);
-    const [footerCopyrightAr, setFooterCopyrightAr] = useState(translations.ar.copyright);
-
-    // AI Knowledge Base State
+    // AI Configuration State
+    const [aiApiKey, setAiApiKey] = useState(siteConfig.aiApiKey || '');
     const [editingKBItem, setEditingKBItem] = useState<KnowledgeBaseItem | null>(null);
     const [newKBItem, setNewKBItem] = useState({ question: '', answer: '', keywords: '' });
 
@@ -167,25 +156,6 @@ const Admin: React.FC = () => {
             deleteMarketItem(itemId);
         }
     };
-    
-    const handleSaveHomePage = () => {
-        const newTranslations = { ...translations };
-        newTranslations.en.heroTitle = heroTitleEn;
-        newTranslations.ar.heroTitle = heroTitleAr;
-        newTranslations.en.heroSubtitle = heroSubtitleEn;
-        newTranslations.ar.heroSubtitle = heroSubtitleAr;
-        updateTranslations(newTranslations);
-        updateSiteConfig({ heroImage });
-    };
-
-    const handleSaveFooter = () => {
-        const newTranslations = { ...translations };
-        newTranslations.en.footerDesc = footerDescEn;
-        newTranslations.ar.footerDesc = footerDescAr;
-        newTranslations.en.copyright = footerCopyrightEn;
-        newTranslations.ar.copyright = footerCopyrightAr;
-        updateTranslations(newTranslations);
-    };
 
     const handleAddKBItem = () => {
         if(!newKBItem.question || !newKBItem.answer) {
@@ -225,6 +195,10 @@ const Admin: React.FC = () => {
         if (window.confirm('Delete this Q&A pair?')) {
             deleteKnowledgeItem(id);
         }
+    };
+
+    const handleSaveAIConfig = () => {
+        updateSiteConfig({ aiApiKey });
     };
 
     const renderContent = () => {
@@ -345,10 +319,31 @@ const Admin: React.FC = () => {
             case 'ai-config':
                 return (
                     <div className="animate-fade-in space-y-8">
-                        <div className="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-lg border border-brand-green/20">
-                            <h3 className="text-2xl font-bold mb-4">AI Configuration</h3>
-                            <p className="text-sm text-gray-500 mb-6">يتم تأمين مفتاح API الخاص بالمدرب الذكي برمجياً. المعالجة تتم عبر الموديل الأحدث Gemini 3 Flash.</p>
+                        <div className="bg-white dark:bg-dark-card p-8 rounded-3xl shadow-lg border border-brand-green/20">
+                            <h3 className="text-2xl font-bold mb-4">AI Service Management</h3>
+                            <div className="space-y-4">
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-gray-400 uppercase">Gemini API Key</label>
+                                    <div className="flex gap-2">
+                                        <input 
+                                            type="password" 
+                                            value={aiApiKey} 
+                                            onChange={(e) => setAiApiKey(e.target.value)} 
+                                            placeholder="Enter Gemini API Key..." 
+                                            className="flex-1 p-4 rounded-2xl border dark:bg-gray-800 dark:border-gray-700 outline-none focus:ring-2 focus:ring-brand-green" 
+                                        />
+                                        <button 
+                                            onClick={handleSaveAIConfig} 
+                                            className="bg-brand-green text-white px-8 rounded-2xl font-bold shadow-md hover:shadow-glow transition-all active:scale-95"
+                                        >
+                                            {t.save}
+                                        </button>
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 mt-2 px-2">ملاحظة: سيتم حفظ هذا المفتاح في قاعدة البيانات واستخدامه لتشغيل المدرب الذكي.</p>
+                                </div>
+                            </div>
                         </div>
+
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                              <div className="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-lg border border-gray-100 dark:border-gray-800">
                                 <h3 className="text-2xl font-bold mb-4">{t.existingQA}</h3>
