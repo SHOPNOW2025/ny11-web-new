@@ -233,7 +233,6 @@ const Admin: React.FC = () => {
                 return (
                     <div className="animate-fade-in space-y-4">
                         <h3 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white px-2">{t.users}</h3>
-                        {/* Mobile Optimized View */}
                         <div className="md:hidden space-y-3">
                             {users.filter(u => u.role === UserRole.USER && u.id !== 'guest').map(user => (
                                 <div key={user.id} className="bg-white dark:bg-dark-card p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
@@ -251,7 +250,6 @@ const Admin: React.FC = () => {
                                 </div>
                             ))}
                         </div>
-                        {/* Desktop View */}
                         <div className="hidden md:block bg-white dark:bg-dark-card p-6 rounded-2xl shadow-lg">
                             <table className="w-full text-left">
                                 <thead className="border-b dark:border-gray-700">
@@ -286,7 +284,6 @@ const Admin: React.FC = () => {
                                 {showAddCoachForm && !editingCoachId ? t.close : t.addNewCoach}
                             </button>
                         </div>
-
                         {showAddCoachForm && (
                            <div className="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-lg animate-slide-up border border-brand-green/20">
                                <h3 className="text-xl font-bold mb-6 text-brand-green">{editingCoachId ? t.editCoach : t.addNewCoach}</h3>
@@ -318,7 +315,6 @@ const Admin: React.FC = () => {
                                </form>
                            </div>
                         )}
-
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {coaches.map(coach => (
                                 <div key={coach.id} className="bg-white dark:bg-dark-card p-5 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
@@ -337,10 +333,6 @@ const Admin: React.FC = () => {
                                             <p className="text-lg font-black">{coach.experienceYears}+</p>
                                             <p className="text-[10px] text-gray-400 uppercase">Years</p>
                                         </div>
-                                        <div className="text-center">
-                                            <p className="text-lg font-black">{coach.clientsHelped}+</p>
-                                            <p className="text-[10px] text-gray-400 uppercase">Clients</p>
-                                        </div>
                                         <button onClick={() => handleEditCoachClick(coach)} className="bg-gray-50 dark:bg-gray-800 p-2 px-4 rounded-full text-blue-500 font-bold text-sm self-center hover:bg-blue-50 transition-colors">
                                             {t.edit}
                                         </button>
@@ -352,52 +344,58 @@ const Admin: React.FC = () => {
                  );
             case 'ai-config':
                 return (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
-                         <div className="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-lg border border-gray-100 dark:border-gray-800">
-                            <h3 className="text-2xl font-bold mb-4">{t.existingQA}</h3>
-                            <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                                {knowledgeBase.map(item => (
-                                    <div key={item.id} className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border dark:border-gray-700 group hover:border-brand-green/30 transition-all">
-                                        <p className="font-bold text-brand-green mb-1" dir="auto">Q: {item.question}</p>
-                                        <p className="text-sm text-gray-600 dark:text-gray-300 mb-3" dir="auto">A: {item.answer}</p>
-                                        <div className="flex justify-between items-center text-[10px] uppercase font-black text-gray-400">
-                                            <span>Keywords: {item.keywords.join(', ')}</span>
-                                            <div className="flex gap-3">
-                                                <button onClick={() => handleEditKBClick(item)} className="text-blue-500">{t.edit}</button>
-                                                <button onClick={() => handleDeleteKBItem(item.id)} className="text-red-500">{t.delete}</button>
+                    <div className="animate-fade-in space-y-8">
+                        <div className="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-lg border border-brand-green/20">
+                            <h3 className="text-2xl font-bold mb-4">AI Configuration</h3>
+                            <p className="text-sm text-gray-500 mb-6">يتم تأمين مفتاح API الخاص بالمدرب الذكي برمجياً. المعالجة تتم عبر الموديل الأحدث Gemini 3 Flash.</p>
+                        </div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                             <div className="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-lg border border-gray-100 dark:border-gray-800">
+                                <h3 className="text-2xl font-bold mb-4">{t.existingQA}</h3>
+                                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                                    {knowledgeBase.map(item => (
+                                        <div key={item.id} className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border dark:border-gray-700 group hover:border-brand-green/30 transition-all">
+                                            <p className="font-bold text-brand-green mb-1" dir="auto">Q: {item.question}</p>
+                                            <p className="text-sm text-gray-600 dark:text-gray-300 mb-3" dir="auto">A: {item.answer}</p>
+                                            <div className="flex justify-between items-center text-[10px] uppercase font-black text-gray-400">
+                                                <span>Keywords: {item.keywords.join(', ')}</span>
+                                                <div className="flex gap-3">
+                                                    <button onClick={() => handleEditKBClick(item)} className="text-blue-500">{t.edit}</button>
+                                                    <button onClick={() => handleDeleteKBItem(item.id)} className="text-red-500">{t.delete}</button>
+                                                </div>
                                             </div>
                                         </div>
+                                    ))}
+                                </div>
+                             </div>
+                             <div className="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-lg border border-brand-green/20">
+                                <h3 className="text-2xl font-bold mb-6">{editingKBItem ? t.updateQA : t.addNewQA}</h3>
+                                <div className="space-y-5">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-400 uppercase">{t.question}</label>
+                                        <input type="text" value={newKBItem.question} onChange={(e) => setNewKBItem({...newKBItem, question: e.target.value})} className="w-full p-4 rounded-2xl border dark:bg-gray-800 dark:border-gray-700 outline-none focus:ring-2 focus:ring-brand-green" dir="auto" />
                                     </div>
-                                ))}
-                            </div>
-                         </div>
-                         <div className="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-lg border border-brand-green/20">
-                            <h3 className="text-2xl font-bold mb-6">{editingKBItem ? t.updateQA : t.addNewQA}</h3>
-                            <div className="space-y-5">
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-gray-400 uppercase">{t.question}</label>
-                                    <input type="text" value={newKBItem.question} onChange={(e) => setNewKBItem({...newKBItem, question: e.target.value})} className="w-full p-4 rounded-2xl border dark:bg-gray-800 dark:border-gray-700 outline-none focus:ring-2 focus:ring-brand-green" dir="auto" />
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-gray-400 uppercase">{t.answer}</label>
-                                    <textarea value={newKBItem.answer} onChange={(e) => setNewKBItem({...newKBItem, answer: e.target.value})} rows={5} className="w-full p-4 rounded-2xl border dark:bg-gray-800 dark:border-gray-700 outline-none focus:ring-2 focus:ring-brand-green" dir="auto" />
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-gray-400 uppercase">{t.keywords}</label>
-                                    <input type="text" value={newKBItem.keywords} onChange={(e) => setNewKBItem({...newKBItem, keywords: e.target.value})} placeholder="word1, word2..." className="w-full p-4 rounded-2xl border dark:bg-gray-800 dark:border-gray-700 outline-none focus:ring-2 focus:ring-brand-green" />
-                                </div>
-                                <div className="flex gap-4 pt-4">
-                                     <button onClick={editingKBItem ? handleUpdateKBItem : handleAddKBItem} className="flex-1 bg-brand-green text-white py-4 rounded-2xl font-bold shadow-glow transition active:scale-95">
-                                        {editingKBItem ? t.updateQA : t.addQA}
-                                    </button>
-                                    {editingKBItem && (
-                                        <button onClick={() => { setEditingKBItem(null); setNewKBItem({question: '', answer: '', keywords: ''}); }} className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-4 rounded-2xl font-bold">
-                                            {t.cancel}
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-400 uppercase">{t.answer}</label>
+                                        <textarea value={newKBItem.answer} onChange={(e) => setNewKBItem({...newKBItem, answer: e.target.value})} rows={5} className="w-full p-4 rounded-2xl border dark:bg-gray-800 dark:border-gray-700 outline-none focus:ring-2 focus:ring-brand-green" dir="auto" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-400 uppercase">{t.keywords}</label>
+                                        <input type="text" value={newKBItem.keywords} onChange={(e) => setNewKBItem({...newKBItem, keywords: e.target.value})} placeholder="word1, word2..." className="w-full p-4 rounded-2xl border dark:bg-gray-800 dark:border-gray-700 outline-none focus:ring-2 focus:ring-brand-green" />
+                                    </div>
+                                    <div className="flex gap-4 pt-4">
+                                         <button onClick={editingKBItem ? handleUpdateKBItem : handleAddKBItem} className="flex-1 bg-brand-green text-white py-4 rounded-2xl font-bold shadow-glow transition active:scale-95">
+                                            {editingKBItem ? t.updateQA : t.addQA}
                                         </button>
-                                    )}
+                                        {editingKBItem && (
+                                            <button onClick={() => { setEditingKBItem(null); setNewKBItem({question: '', answer: '', keywords: ''}); }} className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-4 rounded-2xl font-bold">
+                                                {t.cancel}
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                         </div>
+                             </div>
+                        </div>
                     </div>
                 );
             case 'store':
@@ -430,27 +428,12 @@ const Admin: React.FC = () => {
                                         <input type="text" name="name" value={newItem.name} onChange={handleItemInputChange} className="w-full p-3 rounded-xl border dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-brand-green outline-none" />
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="text-xs font-bold text-gray-400 uppercase">Description Bubble</label>
-                                        <input type="text" name="summary" value={newItem.summary} onChange={handleItemInputChange} placeholder="E.g. HIGH PROTEIN" className="w-full p-3 rounded-xl border dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-brand-green outline-none" />
-                                    </div>
-                                    <div className="space-y-1">
                                         <label className="text-xs font-bold text-gray-400 uppercase">{t.price}</label>
                                         <input type="number" step="0.01" name="price" value={newItem.price} onChange={handleItemInputChange} className="w-full p-3 rounded-xl border dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-brand-green outline-none" />
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-xs font-bold text-gray-400 uppercase">{t.imageUrl}</label>
                                         <input type="text" name="image" value={newItem.image} onChange={handleItemInputChange} className="w-full p-3 rounded-xl border dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-brand-green outline-none" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-xs font-bold text-gray-400 uppercase">{t.category}</label>
-                                        <select name="category" value={newItem.category} onChange={handleItemInputChange} className="w-full p-3 rounded-xl border dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-brand-green outline-none">
-                                            <option value="meal">{t.meal}</option>
-                                            <option value="drink">{t.drink}</option>
-                                            <option value="breakfast">Breakfast</option>
-                                            <option value="lunch">Lunch</option>
-                                            <option value="dinner">Dinner</option>
-                                            <option value="snack">Snack</option>
-                                        </select>
                                     </div>
                                 </div>
                                 <div className="space-y-1">
@@ -496,8 +479,6 @@ const Admin: React.FC = () => {
                 <TabButton tab="coaches" label={t.coaches} />
                 <TabButton tab="ai-config" label={t.aiConfig} />
                 <TabButton tab="store" label={t.storeManagement} />
-                <TabButton tab="homepage" label={t.home} />
-                <TabButton tab="footer" label="Footer" />
             </div>
 
             <div className="max-w-7xl mx-auto pb-20">

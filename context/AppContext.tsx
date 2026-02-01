@@ -168,11 +168,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             else setKnowledgeBase(DEFAULT_KNOWLEDGE_BASE);
         });
 
+        const unsubscribeSettings = onSnapshot(doc(db, "settings", "general"), (doc) => {
+            if (doc.exists()) {
+                setSiteConfig(doc.data() as SiteConfig);
+            }
+        });
+
         return () => {
             unsubscribeAuth();
             unsubscribeMarket();
             unsubscribeCoaches();
             unsubscribeKB();
+            unsubscribeSettings();
         };
     }, []);
 
@@ -278,10 +285,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const getAIResponse = async (userQuestion: string): Promise<string> => {
         try {
-            // Using process.env.API_KEY as requested. GoogleGenAI expects this to be set.
+            // Priority given to injected API Key
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
             
-            const knowledgeContext = knowledgeBase.map(kb => `سؤال: ${kb.question}\nإجابة: ${kb.answer}`).join('\n\n');
+            const knowledgeContext = knowledgeBase.length > 0 
+                ? knowledgeBase.map(kb => `سؤال: ${kb.question}\nإجابة: ${kb.answer}`).join('\n\n')
+                : "لا توجد معرفة محلية محددة حالياً.";
 
             const systemInstruction = `أنت المدرب الذكي لمنصة NY11 للصحة والتغذية.
             صوت العلامة التجارية: احترافي، مشجع، ومعتمد على العلم.
@@ -289,10 +298,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             ${knowledgeContext}
             
             تعليمات:
-            1. استخدم المعرفة المحلية أعلاه للإجابة على الأسئلة المتعلقة بالمنصة أو النصائح الصحية المحددة لدينا.
-            2. إذا كان السؤال عاماً وغير موجود في المعرفة المحلية، قدم نصيحة خبيرة في الصحة والتغذية.
-            3. أجب دائماً بنفس لغة المستخدم.
-            4. كن مختصراً وواضحاً.`;
+            1. استخدم المعرفة المحلية المذكورة أعلاه للإجابة على الأسئلة.
+            2. إذا لم يكن السؤال موجوداً في المعرفة المحلية، قدم نصيحة خبيرة في التغذية والصحة بشكل عام.
+            3. أجب دائماً بلغة المستخدم.
+            4. كن مختصراً، ذكياً، وودوداً.`;
 
             const response = await ai.models.generateContent({ 
                 model: 'gemini-3-flash-preview', 
@@ -333,7 +342,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const deleteBannerImage = (index: number) => setBannerImages(prev => prev.filter((_, i) => i !== index));
     const updateBannerImage = (index: number, url: string) => setBannerImages(prev => prev.map((img, i) => (i === index ? url : img)));
     const updateTranslations = (newTranslations: typeof TRANSLATIONS) => setTranslations(newTranslations);
-    const updateSiteConfig = (newConfig: Partial<SiteConfig>) => setSiteConfig(prev => ({...prev, ...newConfig}));
+    const updateSiteConfig = async (newConfig: Partial<SiteConfig>) => {
+        try {
+            const finalConfig = { ...siteConfig, ...newConfig };
+            setSiteConfig(finalConfig);
+            await setDoc(doc(db, "settings", "general"), finalConfig);
+            showToast("Settings updated.", "success");
+        } catch (err) {
+            console.error(err);
+        }
+    };
 
     const updateQuoteStatus = (messageId: string, status: QuoteStatus, conversation: Message[], setConversation: React.Dispatch<React.SetStateAction<Message[]>>) => {
         const updatedConversation = conversation.map(msg => (msg.id === messageId && msg.quote) ? { ...msg, quote: { ...msg.quote, status } } : msg);
