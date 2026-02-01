@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { CoachOnboardingData, MarketItem, UserRole, Language, KnowledgeBaseItem } from '../types';
+import { CoachOnboardingData, MarketItem, UserRole, Language, KnowledgeBaseItem, User } from '../types';
 
 type AdminTab = 'accounts' | 'coaches' | 'homepage' | 'footer' | 'store' | 'ai-config';
 
@@ -86,14 +86,12 @@ const Admin: React.FC = () => {
              showToast('Please fill all required coach fields.', 'error');
              return;
         }
-
         if (editingCoachId) {
             updateCoach(editingCoachId, newCoach);
             setEditingCoachId(null);
         } else {
             registerCoach(newCoach);
         }
-        
         setNewCoach({ name: '', email: '', phone: '', specialty: '', bio: '', experienceYears: '', clientsHelped: '', avatar: '', password: '' });
         setShowAddCoachForm(false);
     };
@@ -229,28 +227,49 @@ const Admin: React.FC = () => {
         }
     };
 
-
     const renderContent = () => {
         switch (activeTab) {
             case 'accounts':
                 return (
-                    <div className="bg-white dark:bg-dark-card p-6 rounded-xl shadow-lg animate-fade-in">
-                        <h3 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">{t.users}</h3>
-                        <div className="max-h-96 overflow-y-auto">
+                    <div className="animate-fade-in space-y-4">
+                        <h3 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white px-2">{t.users}</h3>
+                        {/* Mobile Optimized View */}
+                        <div className="md:hidden space-y-3">
+                            {users.filter(u => u.role === UserRole.USER && u.id !== 'guest').map(user => (
+                                <div key={user.id} className="bg-white dark:bg-dark-card p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
+                                    <div className="flex items-center gap-3 mb-3">
+                                        <img src={user.avatar || `https://i.pravatar.cc/150?u=${user.id}`} className="w-10 h-10 rounded-full" />
+                                        <div>
+                                            <p className="font-bold">{user.name}</p>
+                                            <p className="text-xs text-gray-500">{user.phone}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between text-sm pt-2 border-t dark:border-gray-700">
+                                        <span className="text-gray-500">{t.yourGoal}</span>
+                                        <span className="font-semibold capitalize">{user.goal?.replace('_', ' ') || 'N/A'}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        {/* Desktop View */}
+                        <div className="hidden md:block bg-white dark:bg-dark-card p-6 rounded-2xl shadow-lg">
                             <table className="w-full text-left">
-                                <thead className="sticky top-0 bg-white dark:bg-dark-card">
+                                <thead className="border-b dark:border-gray-700">
                                     <tr>
-                                        <th className="p-2 border-b dark:border-gray-700">{t.name}</th>
-                                        <th className="p-2 border-b dark:border-gray-700">{t.whatsYourPhone}</th>
-                                        <th className="p-2 border-b dark:border-gray-700">{t.yourGoal}</th>
+                                        <th className="p-4">{t.name}</th>
+                                        <th className="p-4">{t.whatsYourPhone}</th>
+                                        <th className="p-4">{t.yourGoal}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {users.filter(u => u.role === UserRole.USER && u.id !== 'guest').map(user => (
-                                        <tr key={user.id}>
-                                            <td className="p-2 border-b dark:border-gray-700">{user.name}</td>
-                                            <td className="p-2 border-b dark:border-gray-700">{user.phone}</td>
-                                            <td className="p-2 border-b dark:border-gray-700 capitalize">{user.goal?.replace('_', ' ') || 'N/A'}</td>
+                                        <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                            <td className="p-4 flex items-center gap-2">
+                                                 <img src={user.avatar || `https://i.pravatar.cc/150?u=${user.id}`} className="w-8 h-8 rounded-full" />
+                                                 {user.name}
+                                            </td>
+                                            <td className="p-4">{user.phone}</td>
+                                            <td className="p-4 capitalize">{user.goal?.replace('_', ' ') || 'N/A'}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -261,259 +280,118 @@ const Admin: React.FC = () => {
             case 'coaches':
                  return (
                     <div className="animate-fade-in space-y-6">
-                        <div className="bg-white dark:bg-dark-card p-6 rounded-xl shadow-lg">
-                             <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{t.existingCoaches}</h3>
-                                <button onClick={() => { setEditingCoachId(null); setShowAddCoachForm(prev => !prev); }} className="bg-brand-green text-brand-green-dark py-2 px-4 rounded-lg font-semibold hover:opacity-90 transition">
-                                    {showAddCoachForm && !editingCoachId ? t.close : t.addNewCoach}
-                                </button>
-                            </div>
-                            <div className="max-h-96 overflow-y-auto">
-                                <table className="w-full text-left">
-                                    <thead className="sticky top-0 bg-white dark:bg-dark-card">
-                                        <tr>
-                                            <th className="p-2 border-b dark:border-gray-700">{t.name}</th>
-                                            <th className="p-2 border-b dark:border-gray-700">{t.specialty}</th>
-                                            <th className="p-2 border-b dark:border-gray-700">{t.clients}</th>
-                                            <th className="p-2 border-b dark:border-gray-700">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {coaches.map(coach => (
-                                            <tr key={coach.id}>
-                                                <td className="p-2 border-b dark:border-gray-700">{coach.name}</td>
-                                                <td className="p-2 border-b dark:border-gray-700">{coach.specialty}</td>
-                                                <td className="p-2 border-b dark:border-gray-700">{coach.clientsHelped}</td>
-                                                <td className="p-2 border-b dark:border-gray-700">
-                                                    <button onClick={() => handleEditCoachClick(coach)} className="text-blue-500 hover:text-blue-700 font-semibold">{t.edit}</button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                        <div className="flex justify-between items-center px-2">
+                            <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{t.existingCoaches}</h3>
+                            <button onClick={() => { setEditingCoachId(null); setShowAddCoachForm(prev => !prev); }} className="bg-brand-green text-white py-2 px-5 rounded-full font-bold shadow-md active:scale-95 transition">
+                                {showAddCoachForm && !editingCoachId ? t.close : t.addNewCoach}
+                            </button>
                         </div>
-                       
-                       {showAddCoachForm && (
-                           <div className="bg-white dark:bg-dark-card p-6 rounded-xl shadow-lg animate-fade-in">
-                               <h3 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">{editingCoachId ? t.editCoach : t.addNewCoach}</h3>
-                               <form onSubmit={handleSaveCoach} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  <input type="text" name="name" value={newCoach.name} onChange={handleCoachInputChange} placeholder={t.name} className="p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                  <input type="text" name="phone" value={newCoach.phone} onChange={handleCoachInputChange} placeholder={t.phonePlaceholder} className="p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                  <input type="text" name="specialty" value={newCoach.specialty} onChange={handleCoachInputChange} placeholder={t.specialty} className="p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                  <input type="number" name="experienceYears" value={newCoach.experienceYears} onChange={handleCoachInputChange} placeholder={t.experience} className="p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                  <input type="number" name="clientsHelped" value={newCoach.clientsHelped} onChange={handleCoachInputChange} placeholder={t.clients} className="p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                  <input type="text" name="avatar" value={newCoach.avatar} onChange={handleCoachInputChange} placeholder={t.avatarUrl} className="p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                  <input type="password" name="password" value={newCoach.password} onChange={handleCoachInputChange} placeholder={editingCoachId ? `${t.password} (Leave blank to keep)` : t.password} className="p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                  <textarea name="bio" value={newCoach.bio} onChange={handleCoachInputChange} placeholder={t.bio} className="md:col-span-2 p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                  <div className="md:col-span-2 flex gap-4">
-                                      <button type="submit" className="flex-1 bg-brand-green text-brand-green-dark py-3 rounded-lg font-semibold hover:opacity-90 transition">{editingCoachId ? t.updateCoach : t.addCoach}</button>
-                                      {editingCoachId && <button type="button" onClick={handleCancelCoachEdit} className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition">{t.cancel}</button>}
+
+                        {showAddCoachForm && (
+                           <div className="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-lg animate-slide-up border border-brand-green/20">
+                               <h3 className="text-xl font-bold mb-6 text-brand-green">{editingCoachId ? t.editCoach : t.addNewCoach}</h3>
+                               <form onSubmit={handleSaveCoach} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div className="space-y-1">
+                                      <label className="text-xs font-bold text-gray-400 uppercase">{t.name}</label>
+                                      <input type="text" name="name" value={newCoach.name} onChange={handleCoachInputChange} className="w-full p-3 rounded-xl border dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-brand-green outline-none" />
+                                  </div>
+                                  <div className="space-y-1">
+                                      <label className="text-xs font-bold text-gray-400 uppercase">{t.phonePlaceholder}</label>
+                                      <input type="text" name="phone" value={newCoach.phone} onChange={handleCoachInputChange} className="w-full p-3 rounded-xl border dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-brand-green outline-none" />
+                                  </div>
+                                  <div className="space-y-1">
+                                      <label className="text-xs font-bold text-gray-400 uppercase">{t.specialty}</label>
+                                      <input type="text" name="specialty" value={newCoach.specialty} onChange={handleCoachInputChange} className="w-full p-3 rounded-xl border dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-brand-green outline-none" />
+                                  </div>
+                                  <div className="space-y-1">
+                                      <label className="text-xs font-bold text-gray-400 uppercase">{t.experience}</label>
+                                      <input type="number" name="experienceYears" value={newCoach.experienceYears} onChange={handleCoachInputChange} className="w-full p-3 rounded-xl border dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-brand-green outline-none" />
+                                  </div>
+                                  <div className="md:col-span-2 space-y-1">
+                                      <label className="text-xs font-bold text-gray-400 uppercase">{t.bio}</label>
+                                      <textarea name="bio" value={newCoach.bio} onChange={handleCoachInputChange} rows={3} className="w-full p-3 rounded-xl border dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-brand-green outline-none" />
+                                  </div>
+                                  <div className="md:col-span-2 flex gap-3 pt-2">
+                                      <button type="submit" className="flex-1 bg-brand-green text-white py-4 rounded-2xl font-bold shadow-glow transition active:scale-95">{editingCoachId ? t.updateCoach : t.addCoach}</button>
+                                      {editingCoachId && <button type="button" onClick={handleCancelCoachEdit} className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-4 rounded-2xl font-bold active:scale-95 transition">{t.cancel}</button>}
                                   </div>
                                </form>
                            </div>
-                       )}
-                    </div>
-                 );
-            case 'homepage':
-                return (
-                    <div className="bg-white dark:bg-dark-card p-6 rounded-xl shadow-lg animate-fade-in">
-                        <h3 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">{t.homePageManagement}</h3>
-                        
-                        <div className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label className="block font-semibold mb-2">{t.manageHeroTitle} ({t.enText})</label>
-                                    <input type="text" value={heroTitleEn} onChange={(e) => setHeroTitleEn(e.target.value)} className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                </div>
-                                <div>
-                                    <label className="block font-semibold mb-2">{t.manageHeroTitle} ({t.arText})</label>
-                                    <input type="text" value={heroTitleAr} onChange={(e) => setHeroTitleAr(e.target.value)} dir="rtl" className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                </div>
-                            </div>
+                        )}
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label className="block font-semibold mb-2">{t.manageHeroSubtitle} ({t.enText})</label>
-                                    <textarea value={heroSubtitleEn} onChange={(e) => setHeroSubtitleEn(e.target.value)} rows={3} className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                </div>
-                                <div>
-                                    <label className="block font-semibold mb-2">{t.manageHeroSubtitle} ({t.arText})</label>
-                                    <textarea value={heroSubtitleAr} onChange={(e) => setHeroSubtitleAr(e.target.value)} rows={3} dir="rtl" className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block font-semibold mb-2">{t.heroImage}</label>
-                                <input type="text" value={heroImage} onChange={(e) => setHeroImage(e.target.value)} className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                {heroImage && <img src={heroImage} alt="Hero Preview" className="mt-4 h-48 w-full object-cover rounded-lg border dark:border-gray-600" />}
-                            </div>
-
-                            <button onClick={handleSaveHomePage} className="w-full bg-brand-green text-brand-green-dark py-3 rounded-lg font-semibold hover:opacity-90 transition">{t.saveChanges}</button>
-                        </div>
-                    </div>
-                );
-            case 'footer':
-                 return (
-                    <div className="bg-white dark:bg-dark-card p-6 rounded-xl shadow-lg animate-fade-in">
-                        <h3 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">{t.footerManagement}</h3>
-                        
-                        <div className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label className="block font-semibold mb-2">{t.manageFooterDesc} ({t.enText})</label>
-                                    <textarea value={footerDescEn} onChange={(e) => setFooterDescEn(e.target.value)} rows={3} className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                </div>
-                                <div>
-                                    <label className="block font-semibold mb-2">{t.manageFooterDesc} ({t.arText})</label>
-                                    <textarea value={footerDescAr} onChange={(e) => setFooterDescAr(e.target.value)} rows={3} dir="rtl" className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label className="block font-semibold mb-2">{t.footerCopyright} ({t.enText})</label>
-                                    <input type="text" value={footerCopyrightEn} onChange={(e) => setFooterCopyrightEn(e.target.value)} className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                </div>
-                                <div>
-                                    <label className="block font-semibold mb-2">{t.footerCopyright} ({t.arText})</label>
-                                    <input type="text" value={footerCopyrightAr} onChange={(e) => setFooterCopyrightAr(e.target.value)} dir="rtl" className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                </div>
-                            </div>
-
-                            <button onClick={handleSaveFooter} className="w-full bg-brand-green text-brand-green-dark py-3 rounded-lg font-semibold hover:opacity-90 transition">{t.saveChanges}</button>
-                        </div>
-                    </div>
-                );
-            case 'store':
-                 return (
-                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
-                        <div className="lg:col-span-1 bg-white dark:bg-dark-card p-6 rounded-xl shadow-lg">
-                             <h3 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">{t.storeManagement}</h3>
-                             <div className="max-h-[800px] overflow-y-auto space-y-3">
-                                {marketItems.map(item => (
-                                    <div key={item.id} className="flex items-center p-2 border rounded-lg dark:border-gray-700">
-                                        <img src={item.image} alt={item.name} className="w-16 h-16 rounded-md object-cover mr-4" />
-                                        <div className="flex-1">
-                                            <p className="font-semibold">{item.name}</p>
-                                            <p className="text-sm text-gray-500">${item.price.toFixed(2)}</p>
-                                        </div>
-                                        <div className="flex items-center space-x-2 rtl:space-x-reverse">
-                                            <button onClick={() => handleEditItemClick(item)} className="bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-300 px-3 py-1 rounded-md text-sm font-semibold hover:bg-blue-200 dark:hover:bg-blue-900">{t.edit}</button>
-                                            <button onClick={() => handleDeleteItem(item.id)} className="bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-300 px-3 py-1 rounded-md text-sm font-semibold hover:bg-red-200 dark:hover:bg-red-900">{t.delete}</button>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {coaches.map(coach => (
+                                <div key={coach.id} className="bg-white dark:bg-dark-card p-5 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col">
+                                    <div className="flex items-center gap-4 mb-4">
+                                        <img src={coach.avatar} className="w-14 h-14 rounded-full object-cover border-2 border-brand-green/20" />
+                                        <div>
+                                            <p className="font-bold text-lg">{coach.name}</p>
+                                            <p className="text-xs text-brand-green font-bold uppercase tracking-wider">{coach.specialty}</p>
                                         </div>
                                     </div>
-                                ))}
-                             </div>
-                        </div>
-                        <div className="lg:col-span-2 bg-white dark:bg-dark-card p-6 rounded-xl shadow-lg">
-                             <h3 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">{editingItem ? t.edit : t.addNewItem}</h3>
-                             <form onSubmit={editingItem ? handleUpdateItem : handleAddItem} className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <input type="text" name="name" value={newItem.name} onChange={handleItemInputChange} placeholder={t.itemName} className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                    <input type="text" name="summary" value={newItem.summary} onChange={handleItemInputChange} placeholder="Description Bubble (e.g., HIGH PROTEIN)" className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                    <input type="number" step="0.01" name="price" value={newItem.price} onChange={handleItemInputChange} placeholder={t.price} className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                    <input type="text" name="image" value={newItem.image} onChange={handleItemInputChange} placeholder={t.imageUrl} className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                    <select name="category" value={newItem.category} onChange={handleItemInputChange} className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600">
-                                        <option value="meal">{t.meal}</option>
-                                        <option value="drink">{t.drink}</option>
-                                        <option value="breakfast">Breakfast</option>
-                                        <option value="lunch">Lunch</option>
-                                        <option value="dinner">Dinner</option>
-                                        <option value="snack">Snack</option>
-                                    </select>
-                                </div>
-                                
-                                <textarea name="description" value={newItem.description} onChange={handleItemInputChange} placeholder={t.description} className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                <textarea name="ingredients" value={newItem.ingredients} onChange={handleItemInputChange} placeholder={t.ingredients} className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-                                
-                                <div className="border-t pt-6">
-                                    <h4 className="font-bold mb-3">{t.nutritionFacts}</h4>
-                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                                        <input type="text" name="nut-servingSize" value={newItem.nutrition?.servingSize} onChange={handleItemInputChange} placeholder={t.servingSize} className="p-2 border rounded dark:bg-gray-700 dark:border-gray-600 text-xs" />
-                                        <input type="text" name="nut-energy" value={newItem.nutrition?.energy} onChange={handleItemInputChange} placeholder={t.energy} className="p-2 border rounded dark:bg-gray-700 dark:border-gray-600 text-xs" />
-                                        <input type="text" name="nut-protein" value={newItem.nutrition?.protein} onChange={handleItemInputChange} placeholder={t.protein} className="p-2 border rounded dark:bg-gray-700 dark:border-gray-600 text-xs" />
-                                        <input type="text" name="nut-carbs" value={newItem.nutrition?.carbs} onChange={handleItemInputChange} placeholder={t.carbohydrates} className="p-2 border rounded dark:bg-gray-700 dark:border-gray-600 text-xs" />
-                                        <input type="text" name="nut-fat" value={newItem.nutrition?.fat} onChange={handleItemInputChange} placeholder={t.fat} className="p-2 border rounded dark:bg-gray-700 dark:border-gray-600 text-xs" />
+                                    <div className="flex-1">
+                                        <p className="text-sm text-gray-500 line-clamp-2 italic">"{coach.bio}"</p>
+                                    </div>
+                                    <div className="flex justify-between mt-6 pt-4 border-t dark:border-gray-700">
+                                        <div className="text-center">
+                                            <p className="text-lg font-black">{coach.experienceYears}+</p>
+                                            <p className="text-[10px] text-gray-400 uppercase">Years</p>
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-lg font-black">{coach.clientsHelped}+</p>
+                                            <p className="text-[10px] text-gray-400 uppercase">Clients</p>
+                                        </div>
+                                        <button onClick={() => handleEditCoachClick(coach)} className="bg-gray-50 dark:bg-gray-800 p-2 px-4 rounded-full text-blue-500 font-bold text-sm self-center hover:bg-blue-50 transition-colors">
+                                            {t.edit}
+                                        </button>
                                     </div>
                                 </div>
-
-                                <textarea name="caution" value={newItem.caution} onChange={handleItemInputChange} placeholder={t.caution} className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
-
-                                <div className="flex flex-col space-y-2">
-                                    <button type="submit" className="w-full bg-brand-green text-brand-green-dark py-3 rounded-lg font-semibold hover:opacity-90 transition">{editingItem ? t.updateItem : t.addItem}</button>
-                                    {editingItem && (
-                                        <button type="button" onClick={handleCancelEdit} className="w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white py-2 rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition">{t.cancel}</button>
-                                    )}
-                                </div>
-                             </form>
+                            ))}
                         </div>
                     </div>
                  );
             case 'ai-config':
                 return (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
-                        <div className="bg-white dark:bg-dark-card p-6 rounded-xl shadow-lg">
-                            <h3 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">{t.existingQA}</h3>
-                            <p className="text-sm text-gray-500 mb-6 italic">This information serves as the primary brain for the NY11 AI Coach.</p>
-                            <div className="max-h-[500px] overflow-y-auto space-y-4 pr-2">
+                         <div className="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-lg border border-gray-100 dark:border-gray-800">
+                            <h3 className="text-2xl font-bold mb-4">{t.existingQA}</h3>
+                            <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                                 {knowledgeBase.map(item => (
-                                    <div key={item.id} className="p-4 border rounded-2xl dark:border-gray-700 bg-gray-50 dark:bg-gray-800 hover:border-brand-green/30 transition-colors">
-                                        <p className="font-black text-brand-green-dark dark:text-brand-green mb-1" dir="auto">{t.question}: {item.question}</p>
-                                        <p className="text-gray-700 dark:text-gray-300 mb-2 leading-relaxed" dir="auto">{t.answer}: {item.answer}</p>
-                                        <div className="flex justify-between items-center text-[10px] mt-4 pt-2 border-t dark:border-gray-700">
-                                            <span className="text-gray-500 font-bold uppercase tracking-widest truncate max-w-[200px]">Keywords: {item.keywords.join(', ')}</span>
-                                            <div className="flex space-x-3 rtl:space-x-reverse">
-                                                <button onClick={() => handleEditKBClick(item)} className="text-blue-500 hover:text-blue-700 font-bold uppercase">{t.edit}</button>
-                                                <button onClick={() => handleDeleteKBItem(item.id)} className="text-red-500 hover:text-red-700 font-bold uppercase">{t.delete}</button>
+                                    <div key={item.id} className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border dark:border-gray-700 group hover:border-brand-green/30 transition-all">
+                                        <p className="font-bold text-brand-green mb-1" dir="auto">Q: {item.question}</p>
+                                        <p className="text-sm text-gray-600 dark:text-gray-300 mb-3" dir="auto">A: {item.answer}</p>
+                                        <div className="flex justify-between items-center text-[10px] uppercase font-black text-gray-400">
+                                            <span>Keywords: {item.keywords.join(', ')}</span>
+                                            <div className="flex gap-3">
+                                                <button onClick={() => handleEditKBClick(item)} className="text-blue-500">{t.edit}</button>
+                                                <button onClick={() => handleDeleteKBItem(item.id)} className="text-red-500">{t.delete}</button>
                                             </div>
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                        </div>
-                         <div className="bg-white dark:bg-dark-card p-6 rounded-xl shadow-lg">
-                            <h3 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">{editingKBItem ? t.updateQA : t.addNewQA}</h3>
-                            <div className="space-y-6">
-                                <div>
-                                    <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2">{t.question}</label>
-                                    <input 
-                                        type="text" 
-                                        value={newKBItem.question} 
-                                        onChange={(e) => setNewKBItem({...newKBItem, question: e.target.value})} 
-                                        className="w-full p-4 rounded-xl border border-gray-100 dark:border-gray-700 dark:bg-gray-800 focus:ring-2 focus:ring-brand-green outline-none transition" 
-                                        dir="auto"
-                                        placeholder="Enter the typical user question..."
-                                    />
+                         </div>
+                         <div className="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-lg border border-brand-green/20">
+                            <h3 className="text-2xl font-bold mb-6">{editingKBItem ? t.updateQA : t.addNewQA}</h3>
+                            <div className="space-y-5">
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-gray-400 uppercase">{t.question}</label>
+                                    <input type="text" value={newKBItem.question} onChange={(e) => setNewKBItem({...newKBItem, question: e.target.value})} className="w-full p-4 rounded-2xl border dark:bg-gray-800 dark:border-gray-700 outline-none focus:ring-2 focus:ring-brand-green" dir="auto" />
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2">{t.answer}</label>
-                                    <textarea 
-                                        value={newKBItem.answer} 
-                                        onChange={(e) => setNewKBItem({...newKBItem, answer: e.target.value})} 
-                                        rows={6} 
-                                        className="w-full p-4 rounded-xl border border-gray-100 dark:border-gray-700 dark:bg-gray-800 focus:ring-2 focus:ring-brand-green outline-none transition" 
-                                        dir="auto"
-                                        placeholder="How should the AI respond to this specific question?"
-                                    />
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-gray-400 uppercase">{t.answer}</label>
+                                    <textarea value={newKBItem.answer} onChange={(e) => setNewKBItem({...newKBItem, answer: e.target.value})} rows={5} className="w-full p-4 rounded-2xl border dark:bg-gray-800 dark:border-gray-700 outline-none focus:ring-2 focus:ring-brand-green" dir="auto" />
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2">{t.keywords}</label>
-                                    <input 
-                                        type="text" 
-                                        value={newKBItem.keywords} 
-                                        onChange={(e) => setNewKBItem({...newKBItem, keywords: e.target.value})} 
-                                        className="w-full p-4 rounded-xl border border-gray-100 dark:border-gray-700 dark:bg-gray-800 focus:ring-2 focus:ring-brand-green outline-none transition" 
-                                        placeholder="Separate, with, commas"
-                                    />
-                                    <p className="mt-2 text-[10px] text-gray-400 font-medium">Keywords help the AI find the right answer even if the question is worded differently.</p>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-gray-400 uppercase">{t.keywords}</label>
+                                    <input type="text" value={newKBItem.keywords} onChange={(e) => setNewKBItem({...newKBItem, keywords: e.target.value})} placeholder="word1, word2..." className="w-full p-4 rounded-2xl border dark:bg-gray-800 dark:border-gray-700 outline-none focus:ring-2 focus:ring-brand-green" />
                                 </div>
                                 <div className="flex gap-4 pt-4">
-                                     <button onClick={editingKBItem ? handleUpdateKBItem : handleAddKBItem} className="flex-1 bg-brand-green text-white py-4 rounded-xl font-bold hover:shadow-glow transition-all">
+                                     <button onClick={editingKBItem ? handleUpdateKBItem : handleAddKBItem} className="flex-1 bg-brand-green text-white py-4 rounded-2xl font-bold shadow-glow transition active:scale-95">
                                         {editingKBItem ? t.updateQA : t.addQA}
                                     </button>
                                     {editingKBItem && (
-                                        <button onClick={() => { setEditingKBItem(null); setNewKBItem({question: '', answer: '', keywords: ''}); }} className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-4 rounded-xl font-bold hover:bg-gray-200 transition">
+                                        <button onClick={() => { setEditingKBItem(null); setNewKBItem({question: '', answer: '', keywords: ''}); }} className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-4 rounded-2xl font-bold">
                                             {t.cancel}
                                         </button>
                                     )}
@@ -522,40 +400,107 @@ const Admin: React.FC = () => {
                          </div>
                     </div>
                 );
+            case 'store':
+                 return (
+                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
+                        <div className="lg:col-span-1 bg-white dark:bg-dark-card p-6 rounded-3xl shadow-lg">
+                             <h3 className="text-2xl font-bold mb-6">{t.storeManagement}</h3>
+                             <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                                {marketItems.map(item => (
+                                    <div key={item.id} className="flex items-center p-3 border rounded-2xl dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30">
+                                        <img src={item.image} className="w-14 h-14 rounded-xl object-cover" />
+                                        <div className="flex-1 px-4">
+                                            <p className="font-bold text-sm leading-tight">{item.name}</p>
+                                            <p className="text-xs font-bold text-brand-green">${item.price.toFixed(2)}</p>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <button onClick={() => handleEditItemClick(item)} className="p-1 px-3 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold uppercase">{t.edit}</button>
+                                            <button onClick={() => handleDeleteItem(item.id)} className="p-1 px-3 bg-red-50 text-red-600 rounded-full text-[10px] font-bold uppercase">{t.delete}</button>
+                                        </div>
+                                    </div>
+                                ))}
+                             </div>
+                        </div>
+                        <div className="lg:col-span-2 bg-white dark:bg-dark-card p-6 rounded-3xl shadow-lg border border-brand-green/20">
+                             <h3 className="text-2xl font-bold mb-6">{editingItem ? t.edit : t.addNewItem}</h3>
+                             <form onSubmit={editingItem ? handleUpdateItem : handleAddItem} className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-400 uppercase">{t.itemName}</label>
+                                        <input type="text" name="name" value={newItem.name} onChange={handleItemInputChange} className="w-full p-3 rounded-xl border dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-brand-green outline-none" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-400 uppercase">Description Bubble</label>
+                                        <input type="text" name="summary" value={newItem.summary} onChange={handleItemInputChange} placeholder="E.g. HIGH PROTEIN" className="w-full p-3 rounded-xl border dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-brand-green outline-none" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-400 uppercase">{t.price}</label>
+                                        <input type="number" step="0.01" name="price" value={newItem.price} onChange={handleItemInputChange} className="w-full p-3 rounded-xl border dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-brand-green outline-none" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-400 uppercase">{t.imageUrl}</label>
+                                        <input type="text" name="image" value={newItem.image} onChange={handleItemInputChange} className="w-full p-3 rounded-xl border dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-brand-green outline-none" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-400 uppercase">{t.category}</label>
+                                        <select name="category" value={newItem.category} onChange={handleItemInputChange} className="w-full p-3 rounded-xl border dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-brand-green outline-none">
+                                            <option value="meal">{t.meal}</option>
+                                            <option value="drink">{t.drink}</option>
+                                            <option value="breakfast">Breakfast</option>
+                                            <option value="lunch">Lunch</option>
+                                            <option value="dinner">Dinner</option>
+                                            <option value="snack">Snack</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-gray-400 uppercase">{t.description}</label>
+                                    <textarea name="description" value={newItem.description} onChange={handleItemInputChange} rows={3} className="w-full p-3 rounded-xl border dark:bg-gray-800 dark:border-gray-700 outline-none focus:ring-2 focus:ring-brand-green" />
+                                </div>
+                                <div className="flex gap-3">
+                                    <button type="submit" className="flex-1 bg-brand-green text-white py-4 rounded-2xl font-bold shadow-glow transition active:scale-95">{editingItem ? t.updateItem : t.addItem}</button>
+                                    {editingItem && <button type="button" onClick={handleCancelEdit} className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-4 rounded-2xl font-bold">Cancel</button>}
+                                </div>
+                             </form>
+                        </div>
+                    </div>
+                 );
+            default:
+                return <div className="text-center py-20 opacity-50">Feature Coming Soon</div>;
         }
     };
 
     const TabButton: React.FC<{ tab: AdminTab, label: string }> = ({ tab, label }) => (
         <button
             onClick={() => setActiveTab(tab)}
-            className={`px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === tab ? 'bg-brand-green text-white shadow-glow-sm scale-105' : 'bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400'}`}
+            className={`px-8 py-4 rounded-full font-bold transition-all whitespace-nowrap active:scale-90 ${activeTab === tab ? 'bg-brand-green text-white shadow-glow' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
         >
             {label}
         </button>
     );
 
     return (
-        <div className="p-6 bg-gray-50 dark:bg-dark-bg min-h-screen text-gray-800 dark:text-white">
-            <div className="flex flex-wrap justify-between items-center mb-10 gap-4 no-print max-w-7xl mx-auto">
+        <div className="min-h-screen bg-gray-50 dark:bg-dark-bg p-4 md:p-8">
+            <header className="max-w-7xl mx-auto flex justify-between items-center mb-10">
                 <div>
-                    <h1 className="text-4xl font-black italic text-brand-green">ADMIN <span className="text-gray-900 dark:text-white">PANEL</span></h1>
-                    <p className="text-gray-500 font-medium mt-1">Management Console v1.2</p>
+                    <h1 className="text-3xl font-black italic text-brand-green">ADMIN <span className="text-gray-900 dark:text-white">PANEL</span></h1>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">NY11 Health System</p>
                 </div>
-                <button onClick={logout} className="bg-red-500 text-white px-8 py-3 rounded-full font-bold hover:bg-red-600 hover:shadow-lg transition-all transform active:scale-95">
+                <button onClick={logout} className="bg-red-500 text-white p-2 px-6 rounded-full font-bold text-sm shadow-md active:scale-90 transition">
                     {t.logout}
                 </button>
-            </div>
+            </header>
 
-            <div className="mb-10 flex space-x-3 rtl:space-x-reverse overflow-x-auto pb-4 no-print max-w-7xl mx-auto scrollbar-hide">
+            <div className="max-w-7xl mx-auto mb-8 flex overflow-x-auto pb-4 gap-3 scrollbar-hide">
                 <TabButton tab="accounts" label={t.users} />
                 <TabButton tab="coaches" label={t.coaches} />
                 <TabButton tab="ai-config" label={t.aiConfig} />
+                <TabButton tab="store" label={t.storeManagement} />
                 <TabButton tab="homepage" label={t.home} />
                 <TabButton tab="footer" label="Footer" />
-                <TabButton tab="store" label={t.storeManagement} />
             </div>
 
-            <div className="max-w-7xl mx-auto">
+            <div className="max-w-7xl mx-auto pb-20">
                 {renderContent()}
             </div>
         </div>

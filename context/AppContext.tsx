@@ -278,19 +278,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const getAIResponse = async (userQuestion: string): Promise<string> => {
         try {
-            // Assume API_KEY is injected by environment; if not, GoogleGenAI will throw an appropriate error
+            // Using process.env.API_KEY as requested. GoogleGenAI expects this to be set.
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
             
-            const knowledgeContext = knowledgeBase.length > 0 
-                ? knowledgeBase.map(kb => `Q: ${kb.question}\nA: ${kb.answer}`).join('\n\n')
-                : "No specific local knowledge available.";
+            const knowledgeContext = knowledgeBase.map(kb => `سؤال: ${kb.question}\nإجابة: ${kb.answer}`).join('\n\n');
 
-            const systemInstruction = `You are the NY11 AI Health & Nutrition Coach. 
-            Brand Voice: Professional, encouraging, and science-backed.
-            Local Knowledge:
+            const systemInstruction = `أنت المدرب الذكي لمنصة NY11 للصحة والتغذية.
+            صوت العلامة التجارية: احترافي، مشجع، ومعتمد على العلم.
+            المعرفة المحلية للمنصة:
             ${knowledgeContext}
             
-            Instructions: Use the local knowledge if available. If not, provide general expert health advice. Answer in the user's language.`;
+            تعليمات:
+            1. استخدم المعرفة المحلية أعلاه للإجابة على الأسئلة المتعلقة بالمنصة أو النصائح الصحية المحددة لدينا.
+            2. إذا كان السؤال عاماً وغير موجود في المعرفة المحلية، قدم نصيحة خبيرة في الصحة والتغذية.
+            3. أجب دائماً بنفس لغة المستخدم.
+            4. كن مختصراً وواضحاً.`;
 
             const response = await ai.models.generateContent({ 
                 model: 'gemini-3-flash-preview', 
@@ -298,8 +300,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 config: { 
                     systemInstruction,
                     temperature: 0.7,
-                    topP: 0.95,
-                    thinkingConfig: { thinkingBudget: 0 }
+                    topP: 0.95
                 } 
             });
 
@@ -307,8 +308,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         } catch (error) { 
             console.error("AI Coach Error:", error);
             return language === Language.AR 
-                ? "حدث خطأ في الاتصال بالمدرب الذكي. يرجى التأكد من اتصالك بالإنترنت." 
-                : "Connection error with AI coach. Please check your internet."; 
+                ? "حدث خطأ في الاتصال بالمدرب الذكي. يرجى المحاولة لاحقاً." 
+                : "Error connecting to AI Coach. Please try again later."; 
         }
     };
 
